@@ -15,22 +15,93 @@
         try {
           var saved = localStorage.getItem('qistflow_settings_v2');
           var mode = 'dark';
+          var scheme = 'aurora';
+          var liteMode = false;
+          var fontSize = 'normal';
           if (saved) {
             var parsed = JSON.parse(saved);
-            if (parsed && parsed.themeMode) {
-              mode = parsed.themeMode;
+            if (parsed) {
+              if (parsed.themeMode) mode = parsed.themeMode;
+              if (parsed.colorScheme) scheme = parsed.colorScheme;
+              if (parsed.liteMode) liteMode = true;
+              if (parsed.fontSize) fontSize = parsed.fontSize;
             }
           } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
             mode = 'light';
           }
+
+          // Legacy scheme migration
+          var migration = {
+            blue: 'sapphire', royal: 'sapphire',
+            red: 'rose',
+            green: 'emerald', sage: 'emerald',
+            purple: 'aurora', expressive: 'aurora',
+            terracotta: 'sunset', sand: 'sunset', amber: 'sunset', gold: 'sunset', golden: 'sunset',
+            indigo: 'obsidian', black: 'obsidian',
+            slate: 'graphite', white: 'graphite', mono: 'graphite',
+            teal: 'ocean'
+          };
+          var themeId = migration[scheme] || scheme || 'aurora';
+
+          var gradients = {
+            aurora: {
+              light: 'linear-gradient(160deg, #ECE8FB 0%, #F7F4EF 50%, #FDF1EE 100%)',
+              dark: 'linear-gradient(160deg, #14121F 0%, #1C1933 50%, #261E3D 100%)',
+              bgLight: '#F3F0FA', bgDark: '#12101C'
+            },
+            ocean: {
+              light: 'linear-gradient(160deg, #E3F4FB 0%, #F0FAFA 50%, #EAF7F3 100%)',
+              dark: 'linear-gradient(160deg, #07161D 0%, #0B2530 50%, #0E2F36 100%)',
+              bgLight: '#E8F5F9', bgDark: '#05131A'
+            },
+            rose: {
+              light: 'linear-gradient(160deg, #FCE9EF 0%, #FFF4EE 50%, #F6EAFB 100%)',
+              dark: 'linear-gradient(160deg, #1C0F16 0%, #2A1522 50%, #32182D 100%)',
+              bgLight: '#FAF0F4', bgDark: '#180B12'
+            },
+            emerald: {
+              light: 'linear-gradient(160deg, #E4F6EC 0%, #F2FAF1 50%, #E8F4F4 100%)',
+              dark: 'linear-gradient(160deg, #08160F 0%, #0E2519 50%, #12302A 100%)',
+              bgLight: '#E9F5EF', bgDark: '#05130D'
+            },
+            sapphire: {
+              light: 'linear-gradient(160deg, #E6EEFF 0%, #F2F6FF 50%, #EAF4FF 100%)',
+              dark: 'linear-gradient(160deg, #080F24 0%, #0D1A3D 50%, #11204A 100%)',
+              bgLight: '#ECF1FA', bgDark: '#060B1C'
+            },
+            sunset: {
+              light: 'linear-gradient(160deg, #FFF0DC 0%, #FFF7EA 50%, #FDE9E3 100%)',
+              dark: 'linear-gradient(160deg, #1F1208 0%, #2C190B 50%, #331A18 100%)',
+              bgLight: '#FAF2E8', bgDark: '#1A0E06'
+            },
+            graphite: {
+              light: 'linear-gradient(160deg, #ECEEF2 0%, #F6F7F9 50%, #E9ECF1 100%)',
+              dark: 'linear-gradient(160deg, #0C0E12 0%, #14171D 50%, #1A1E26 100%)',
+              bgLight: '#ECEFF4', bgDark: '#090B0E'
+            },
+            obsidian: {
+              light: 'linear-gradient(160deg, #F3F4FA 0%, #FFFFFF 50%, #EFEFF8 100%)',
+              dark: 'linear-gradient(160deg, #05060A 0%, #0A0C14 50%, #0F1322 100%)',
+              bgLight: '#F1F2F9', bgDark: '#040508'
+            }
+          };
+
+          var currentTheme = gradients[themeId] || gradients.aurora;
           var docEl = document.documentElement;
           docEl.classList.remove('light', 'dark');
           docEl.classList.add(mode);
           docEl.setAttribute('data-theme', mode);
+          docEl.setAttribute('data-glass-theme', themeId);
+          docEl.setAttribute('data-font-size', fontSize);
+          docEl.classList.remove('text-size-normal', 'text-size-large', 'text-size-extra_large');
+          docEl.classList.add('text-size-' + fontSize);
+          if (liteMode) docEl.classList.add('lite-mode');
           docEl.style.colorScheme = mode;
+          docEl.style.setProperty('--bg-gradient', mode === 'light' ? currentTheme.light : currentTheme.dark);
+
           var metaColor = document.getElementById('meta-theme-color');
           if (metaColor) {
-            metaColor.setAttribute('content', mode === 'light' ? '#f8fafc' : '#030712');
+            metaColor.setAttribute('content', mode === 'light' ? currentTheme.bgLight : currentTheme.bgDark);
           }
         } catch (e) {}
       })();

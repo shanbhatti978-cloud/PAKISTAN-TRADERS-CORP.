@@ -152,10 +152,10 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
               <KeyRound className="w-6 h-6 stroke-[2.2]" />
             </div>
             <div>
-              <h2 className="text-lg font-black tracking-tight font-heading text-text">
+              <h2 className="text-title font-black tracking-tight font-heading text-text">
                 {mustChangeMode ? 'Update Temporary Password' : 'Account Login'}
               </h2>
-              <p className="text-xs font-semibold text-text-muted">
+              <p className="text-caption font-semibold text-text-muted">
                 {mustChangeMode ? 'Password change required before proceeding' : 'Enter your credentials to sign in'}
               </p>
             </div>
@@ -165,7 +165,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
             <button
               type="button"
               onClick={handleClose}
-              className="p-2 rounded-xl text-text-subtle hover:text-text transition-all border border-border bg-surface-2"
+              className="p-2 rounded-xl text-text-muted hover:text-text transition-all border border-border bg-surface-2"
             >
               <X className="w-5 h-5" />
             </button>
@@ -174,12 +174,12 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
 
         {/* Subtle Demo Mode Badge (Only while demo accounts exist) */}
         {!hasRealAdmin && !mustChangeMode && (
-          <div className="p-3 rounded-2xl bg-warning-container text-on-warning-container border border-border text-xs font-medium flex items-center justify-between">
+          <div className="p-3 rounded-2xl bg-warning-container text-on-warning-container border border-border text-caption font-medium flex items-center justify-between">
             <span className="flex items-center gap-1.5 font-bold">
-              <Shield className="w-4 h-4 text-warning" />
+              <Shield className="w-4 h-4 text-warning shrink-0" />
               Demo mode active
             </span>
-            <span className="text-[10px] font-mono bg-surface/50 px-2 py-0.5 rounded-full font-bold">
+            <span className="text-caption font-mono bg-surface/50 px-2.5 py-0.5 rounded-full font-bold">
               Default users enabled
             </span>
           </div>
@@ -188,12 +188,12 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
         {/* FORCED PASSWORD CHANGE FORM */}
         {mustChangeMode ? (
           <form onSubmit={handleForcePasswordChangeSubmit} className="space-y-4">
-            <div className="p-3 rounded-2xl bg-info-container text-on-info-container border border-border text-xs font-medium">
+            <div className="p-3 rounded-2xl bg-info-container text-on-info-container border border-border text-caption font-medium">
               You logged in with a temporary password or admin reset. Please set a new password (min 8 chars, 1 digit).
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-text-muted">
+              <label className="text-body-sm font-bold text-text">
                 New Password
               </label>
               <div className="relative">
@@ -202,7 +202,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Min 8 chars with 1 number..."
-                  className="m3-input pr-10 font-mono text-sm"
+                  className="m3-input pr-10 font-mono text-body"
                   required
                   minLength={8}
                   autoFocus
@@ -210,7 +210,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowNewPassword(!showNewPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-subtle hover:text-text"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text"
                 >
                   {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -218,7 +218,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-text-muted">
+              <label className="text-body-sm font-bold text-text">
                 Confirm New Password
               </label>
               <input
@@ -226,20 +226,20 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
                 value={confirmNewPassword}
                 onChange={(e) => setConfirmNewPassword(e.target.value)}
                 placeholder="Re-enter new password..."
-                className="m3-input font-mono text-sm"
+                className="m3-input font-mono text-body"
                 required
               />
             </div>
 
             {errorMsg && (
-              <div className="p-3 rounded-2xl bg-danger-container text-on-danger-container border border-border text-xs font-bold flex items-center gap-2">
+              <div className="p-3 rounded-2xl bg-danger-container text-on-danger-container border border-border text-caption font-bold flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
             )}
 
             {successMsg && (
-              <div className="p-3 rounded-2xl bg-success-container text-on-success-container border border-border text-xs font-bold flex items-center gap-2">
+              <div className="p-3 rounded-2xl bg-success-container text-on-success-container border border-border text-caption font-bold flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>{successMsg}</span>
               </div>
@@ -248,7 +248,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="m3-btn-base m3-btn-filled w-full text-xs py-3 shadow-2 active:scale-98 cursor-pointer justify-center"
+              className="m3-btn-base m3-btn-filled w-full text-body-sm py-3 font-bold shadow-2 active:scale-98 cursor-pointer justify-center"
             >
               <Lock className="w-4 h-4" />
               <span>{isSubmitting ? 'Updating...' : 'Save New Password & Continue'}</span>
@@ -258,7 +258,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
           /* STANDARD LOGIN FORM */
           <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-text-muted">
+              <label className="text-body-sm font-bold text-text">
                 Username
               </label>
               <input
@@ -266,7 +266,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter username"
-                className="m3-input text-sm font-medium"
+                className="m3-input text-body font-medium"
                 required
                 autoFocus
                 autoComplete="off"
@@ -274,7 +274,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-text-muted">
+              <label className="text-body-sm font-bold text-text">
                 Password
               </label>
               <div className="relative">
@@ -283,14 +283,14 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter password"
-                  className="m3-input pr-10 text-sm font-medium"
+                  className="m3-input pr-10 text-body font-medium"
                   required
                   autoComplete="off"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-subtle hover:text-text transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -298,14 +298,14 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
             </div>
 
             {errorMsg && (
-              <div className="p-3 rounded-2xl bg-danger-container text-on-danger-container border border-border text-xs font-bold flex items-center gap-2 animate-in shake duration-150">
+              <div className="p-3 rounded-2xl bg-danger-container text-on-danger-container border border-border text-caption font-bold flex items-center gap-2 animate-in shake duration-150">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
             )}
 
             {successMsg && (
-              <div className="p-3 rounded-2xl bg-success-container text-on-success-container border border-border text-xs font-bold flex items-center gap-2 animate-in fade-in">
+              <div className="p-3 rounded-2xl bg-success-container text-on-success-container border border-border text-caption font-bold flex items-center gap-2 animate-in fade-in">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>{successMsg}</span>
               </div>
@@ -315,7 +315,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
               <button
                 type="button"
                 onClick={handleClose}
-                className="m3-btn-base m3-btn-outlined text-xs py-2.5 px-4"
+                className="m3-btn-base m3-btn-outlined text-body-sm py-2.5 px-4 font-bold"
               >
                 Cancel
               </button>
@@ -323,7 +323,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="m3-btn-base m3-btn-filled text-xs py-2.5 px-6 shadow-2 active:scale-95 transition-transform cursor-pointer"
+                className="m3-btn-base m3-btn-filled text-body-sm py-2.5 px-6 font-bold shadow-2 active:scale-95 transition-transform cursor-pointer"
               >
                 <UserCheck className="w-4 h-4" />
                 <span>{isSubmitting ? 'Authenticating...' : 'Sign In'}</span>

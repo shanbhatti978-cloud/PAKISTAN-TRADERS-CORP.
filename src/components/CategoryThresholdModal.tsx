@@ -128,52 +128,52 @@ export const CategoryThresholdModal: React.FC<CategoryThresholdModalProps> = ({
                   {/* Category Details */}
                   <div className="space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="px-2 py-0.5 font-mono-tabular rounded text-[10px] font-bold border" style={{ backgroundColor: 'var(--theme-surface-card)', color: 'var(--theme-primary)', borderColor: 'var(--theme-surface-border)' }}>
+                      <span className="px-2.5 py-1 font-mono-tabular rounded text-caption font-bold border" style={{ backgroundColor: 'var(--theme-surface-card)', color: 'var(--theme-primary)', borderColor: 'var(--theme-surface-border)' }}>
                         {category.code || `CAT-${category.id}`}
                       </span>
-                      <h3 className="text-sm font-bold font-heading" style={{ color: 'var(--theme-text-primary)' }}>
+                      <h3 className="text-body font-bold font-heading" style={{ color: 'var(--theme-text-primary)' }}>
                         {category.name}
                       </h3>
 
                       {isOutOfStock ? (
-                        <span className="px-2 py-0.5 rounded-full border text-[10px] font-bold" style={{ backgroundColor: 'var(--theme-tonal-bg)', color: 'var(--theme-primary)', borderColor: 'var(--theme-tonal-border)' }}>
+                        <span className="px-2.5 py-1 rounded-full border text-caption font-bold" style={{ backgroundColor: 'var(--theme-tonal-bg)', color: 'var(--theme-primary)', borderColor: 'var(--theme-tonal-border)' }}>
                           Depleted (0 In Shop)
                         </span>
                       ) : isLowStock ? (
-                        <span className="px-2 py-0.5 rounded-full border text-[10px] font-bold flex items-center gap-1" style={{ backgroundColor: 'var(--theme-tonal-bg)', color: 'var(--theme-primary)', borderColor: 'var(--theme-tonal-border)' }}>
-                          <AlertTriangle className="w-3 h-3" />
+                        <span className="px-2.5 py-1 rounded-full border text-caption font-bold flex items-center gap-1" style={{ backgroundColor: 'var(--theme-tonal-bg)', color: 'var(--theme-primary)', borderColor: 'var(--theme-tonal-border)' }}>
+                          <AlertTriangle className="w-3.5 h-3.5" />
                           Low Stock Alert ({availableUnits} left &le; {threshold})
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-full border text-[10px] font-semibold text-slate-400" style={{ borderColor: 'var(--theme-surface-border)' }}>
+                        <span className="px-2.5 py-1 rounded-full border text-caption font-semibold text-text-muted" style={{ borderColor: 'var(--theme-surface-border)' }}>
                           Adequate ({availableUnits} units)
                         </span>
                       )}
 
                       {isSaved && (
-                        <span className="px-2 py-0.5 rounded border text-[10px] font-bold flex items-center gap-1" style={{ backgroundColor: 'var(--theme-tonal-bg)', color: 'var(--theme-primary)', borderColor: 'var(--theme-tonal-border)' }}>
-                          <CheckCircle2 className="w-3 h-3" /> Saved
+                        <span className="px-2.5 py-1 rounded border text-caption font-bold flex items-center gap-1" style={{ backgroundColor: 'var(--theme-tonal-bg)', color: 'var(--theme-primary)', borderColor: 'var(--theme-tonal-border)' }}>
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Saved
                         </span>
                       )}
                     </div>
 
                     {category.description && (
-                      <p className="text-xs text-slate-400 line-clamp-1">
+                      <p className="text-caption text-text-muted line-clamp-1 font-medium">
                         {category.description}
                       </p>
                     )}
 
-                    <div className="text-[11px] text-slate-400 flex items-center gap-3 pt-0.5">
+                    <div className="text-caption text-text-muted flex items-center gap-3 pt-0.5 font-medium">
                       <span>
                         Current Physical Stock:{' '}
-                        <strong className="font-mono-tabular" style={{ color: 'var(--theme-primary)' }}>
+                        <strong className="font-mono-tabular font-bold" style={{ color: 'var(--theme-primary)' }}>
                           {availableUnits} Units
                         </strong>
                       </span>
                       <span>•</span>
                       <span>
                         Safe Reserve Level:{' '}
-                        <strong className="font-mono-tabular" style={{ color: 'var(--theme-text-primary)' }}>
+                        <strong className="font-mono-tabular font-bold" style={{ color: 'var(--theme-text-primary)' }}>
                           &gt; {threshold} Units
                         </strong>
                       </span>
@@ -183,7 +183,7 @@ export const CategoryThresholdModal: React.FC<CategoryThresholdModalProps> = ({
                   {/* Threshold Controls */}
                   <div className="flex items-center gap-3 self-end sm:self-center shrink-0">
                     <div className="flex flex-col items-end">
-                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1">
+                      <span className="text-caption uppercase font-bold text-text-muted tracking-wider mb-1">
                         Minimum Threshold
                       </span>
 
@@ -192,7 +192,7 @@ export const CategoryThresholdModal: React.FC<CategoryThresholdModalProps> = ({
                           type="button"
                           onClick={() => handleUpdate(category.id, threshold - 1)}
                           disabled={threshold <= 1}
-                          className="w-7 h-7 rounded-lg font-black text-sm flex items-center justify-center transition-all border disabled:opacity-40"
+                          className="w-8 h-8 rounded-lg font-black text-body flex items-center justify-center transition-all border disabled:opacity-40"
                           style={{ backgroundColor: 'var(--theme-surface-input)', borderColor: 'var(--theme-surface-border)', color: 'var(--theme-text-primary)' }}
                           title="Decrease threshold"
                         >
@@ -205,14 +205,14 @@ export const CategoryThresholdModal: React.FC<CategoryThresholdModalProps> = ({
                           max={100}
                           value={threshold}
                           onChange={(e) => handleUpdate(category.id, parseInt(e.target.value) || 1)}
-                          className="w-14 text-center bg-transparent font-extrabold font-mono-tabular text-sm focus:outline-none"
+                          className="w-14 text-center bg-transparent font-extrabold font-mono-tabular text-body focus:outline-none"
                           style={{ color: 'var(--theme-text-primary)' }}
                         />
 
                         <button
                           type="button"
                           onClick={() => handleUpdate(category.id, threshold + 1)}
-                          className="w-7 h-7 rounded-lg font-black text-sm flex items-center justify-center transition-all border"
+                          className="w-8 h-8 rounded-lg font-black text-body flex items-center justify-center transition-all border"
                           style={{ backgroundColor: 'var(--theme-surface-input)', borderColor: 'var(--theme-surface-border)', color: 'var(--theme-text-primary)' }}
                           title="Increase threshold"
                         >
@@ -221,14 +221,14 @@ export const CategoryThresholdModal: React.FC<CategoryThresholdModalProps> = ({
                       </div>
 
                       {/* Quick presets */}
-                      <div className="flex items-center gap-1 mt-1.5 text-[10px]">
-                        <span className="text-slate-400 font-medium">Presets:</span>
+                      <div className="flex items-center gap-1 mt-1.5 text-caption">
+                        <span className="text-text-muted font-bold">Presets:</span>
                         {[1, 2, 3, 5, 10].map((preset) => (
                           <button
                             key={preset}
                             type="button"
                             onClick={() => handleUpdate(category.id, preset)}
-                            className="px-1.5 py-0.5 rounded font-mono-tabular transition-all border"
+                            className="px-2 py-0.5 rounded font-mono-tabular font-bold transition-all border"
                             style={{
                               backgroundColor: threshold === preset ? 'var(--theme-primary)' : 'var(--theme-surface-input)',
                               color: threshold === preset ? 'var(--theme-primary-foreground)' : 'var(--theme-text-secondary)',
@@ -250,8 +250,8 @@ export const CategoryThresholdModal: React.FC<CategoryThresholdModalProps> = ({
 
         {/* Footer Actions */}
         <div className="p-4 sm:p-5 border-t flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0" style={{ backgroundColor: 'var(--theme-surface-input)', borderColor: 'var(--theme-surface-border)' }}>
-          <div className="text-xs text-slate-400 text-center sm:text-left">
-            <span className="font-semibold" style={{ color: 'var(--theme-text-primary)' }}>Tip:</span> Set higher thresholds (e.g. 5–10) for fast-selling items like mobile phones and iron appliances.
+          <div className="text-caption text-text-muted text-center sm:text-left font-medium">
+            <span className="font-bold" style={{ color: 'var(--theme-text-primary)' }}>Tip:</span> Set higher thresholds (e.g. 5–10) for fast-selling items like mobile phones and iron appliances.
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">

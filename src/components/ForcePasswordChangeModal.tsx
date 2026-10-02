@@ -72,28 +72,28 @@ export const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> =
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-lg flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div className={`w-full max-w-md rounded-3xl border shadow-2xl p-6 sm:p-8 space-y-6 relative overflow-hidden ${
-        isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-800 text-white'
+        isLight ? 'bg-surface border-border text-text' : 'bg-surface border-border text-text'
       }`}>
         
         {/* Header */}
         <div className="text-center space-y-2">
-          <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/20 inline-flex">
+          <div className="p-3 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 inline-flex">
             <Lock className="w-8 h-8 stroke-[2.2]" />
           </div>
           
-          <h2 className="text-xl font-black tracking-tight font-heading">
+          <h2 className="text-heading font-heading font-extrabold tracking-tight text-text">
             Mandatory Password Update
           </h2>
 
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-            Welcome, <strong className="text-blue-500 uppercase">{currentUser.username}</strong>! Your account was assigned a temporary password. You must set a new secure password before proceeding.
+          <p className="text-caption font-medium text-text-muted">
+            Welcome, <strong className="text-primary font-bold uppercase">{currentUser.username}</strong>! Your account was assigned a temporary password. You must set a new secure password before proceeding.
           </p>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+          <div className="space-y-1.5">
+            <label className="text-body-sm font-bold text-text">
               New Password *
             </label>
             <div className="relative">
@@ -102,22 +102,23 @@ export const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> =
                 placeholder="Min 8 characters..."
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="m3-input text-xs font-mono pr-8"
+                className="m3-input text-body font-mono pr-10"
                 required
                 autoFocus
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text transition-colors p-1"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+          <div className="space-y-1.5">
+            <label className="text-body-sm font-bold text-text">
               Confirm New Password *
             </label>
             <input
@@ -125,41 +126,41 @@ export const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> =
               placeholder="Re-enter new password..."
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="m3-input text-xs font-mono"
+              className="m3-input text-body font-mono"
               required
             />
           </div>
 
           {/* Validation Checklist */}
-          <div className="p-3 rounded-2xl border text-xs space-y-1.5 bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          <div className="p-3.5 rounded-2xl border text-caption space-y-2 bg-surface-2 border-border">
+            <div className="text-caption font-bold uppercase tracking-wider text-text-muted">
               Security Checklist
             </div>
-            <div className="space-y-1 text-[11px] font-semibold">
-              <div className={`flex items-center gap-1.5 ${hasMinLen ? 'text-emerald-500 font-bold' : 'text-slate-400'}`}>
-                <CheckCircle2 className="w-3.5 h-3.5" />
+            <div className="space-y-1.5 text-caption font-semibold">
+              <div className={`flex items-center gap-2 ${hasMinLen ? 'text-success font-bold' : 'text-text-muted'}`}>
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>At least 8 characters</span>
               </div>
-              <div className={`flex items-center gap-1.5 ${hasDigit ? 'text-emerald-500 font-bold' : 'text-slate-400'}`}>
-                <CheckCircle2 className="w-3.5 h-3.5" />
+              <div className={`flex items-center gap-2 ${hasDigit ? 'text-success font-bold' : 'text-text-muted'}`}>
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>At least 1 digit (0-9)</span>
               </div>
-              <div className={`flex items-center gap-1.5 ${passwordsMatch ? 'text-emerald-500 font-bold' : 'text-slate-400'}`}>
-                <CheckCircle2 className="w-3.5 h-3.5" />
+              <div className={`flex items-center gap-2 ${passwordsMatch ? 'text-success font-bold' : 'text-text-muted'}`}>
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>Passwords match</span>
               </div>
             </div>
           </div>
 
           {errorMsg && (
-            <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-400 text-xs font-bold flex items-center gap-2 animate-in shake">
+            <div className="p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-400 text-caption font-bold flex items-center gap-2 animate-in shake">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
+            <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-caption font-bold flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{successMsg}</span>
             </div>
@@ -168,7 +169,7 @@ export const ForcePasswordChangeModal: React.FC<ForcePasswordChangeModalProps> =
           <button
             type="submit"
             disabled={!isValid}
-            className="w-full m3-btn-base m3-btn-filled text-xs py-3 rounded-2xl shadow-xl font-bold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full m3-btn-base m3-btn-filled text-body-sm py-3.5 rounded-2xl shadow-xl font-bold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ShieldCheck className="w-4 h-4" />
             <span>Update Password & Continue</span>

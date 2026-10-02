@@ -11,8 +11,12 @@ import {
   Truck,
   EyeOff,
   AlertCircle,
+  FileSignature,
+  FileCheck,
+  Plus,
 } from 'lucide-react';
-import { Customer, StockItem, ShopSettings, Agreement } from '../types';
+import { Customer, StockItem, ShopSettings, Agreement, CustomerRating } from '../types';
+import { ListPicker } from './ListPicker';
 
 interface NewAgreementModalProps {
   customers: Customer[];
@@ -20,6 +24,8 @@ interface NewAgreementModalProps {
   settings: ShopSettings;
   onClose: () => void;
   preselectedItemId?: string;
+  preselectedCustomerId?: string;
+  onAddCustomer?: (customerData: Omit<Customer, 'id' | 'customerCode' | 'createdAt'>) => Customer;
   onCreateAgreement: (params: {
     customerId: string;
     itemId: string;
@@ -45,20 +51,24 @@ export const NewAgreementModal: React.FC<NewAgreementModalProps> = ({
   settings,
   onClose,
   preselectedItemId,
+  preselectedCustomerId,
+  onAddCustomer,
   onCreateAgreement,
 }) => {
-  const [step, setStep] = useState<1 | 2 | 3>(preselectedItemId ? 2 : 1);
+  // 4 Stepper steps: 1 Customer, 2 Item, 3 Terms, 4 Review
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(
+    preselectedCustomerId && preselectedItemId ? 3 : preselectedCustomerId ? 2 : 1
+  );
 
   const availableStock = stock.filter((s) => s.status === 'available');
 
-  const [selectedCustId, setSelectedCustId] = useState<string>(customers[0]?.id || '');
-  const [selectedItemId, setSelectedItemId] = useState<string>(
-    preselectedItemId || availableStock[0]?.id || ''
-  );
+  const [selectedCustId, setSelectedCustId] = useState<string>(preselectedCustomerId || '');
+  const [selectedItemId, setSelectedItemId] = useState<string>(preselectedItemId || '');
 
+  const selectedCustomer = customers.find((c) => c.id === selectedCustId);
   const selectedStockItem = stock.find((s) => s.id === selectedItemId);
 
-  // Financial State
+  // Financial & Agreement Terms State
   const defaultCash = selectedStockItem?.cashPrice || 35000;
   const defaultUnitCost = selectedStockItem?.unitCost || Math.round(defaultCash * 0.85);
 
@@ -80,18 +90,26 @@ export const NewAgreementModal: React.FC<NewAgreementModalProps> = ({
   const [notes, setNotes] = useState<string>('');
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  // Inline Quick Add Customer Modal
+  const [showQuickAddCustomer, setShowQuickAddCustomer] = useState(false);
+  const [quickCustName, setQuickCustName] = useState('');
+  const [quickCustCnic, setQuickCustCnic] = useState('');
+  const [quickCustPhone, setQuickCustPhone] = useState('');
+  const [quickCustCity, setQuickCustCity] = useState(settings.city || 'Lahore');
+  const [quickCustAddress, setQuickCustAddress] = useState('');
+  const [quickCustRating, setQuickCustRating] = useState<CustomerRating>('good');
+  const [quickG1Name, setQuickG1Name] = useState('');
+  const [quickG1Phone, setQuickG1Phone] = useState('');
+
   // Handle stock item change
-  const handleItemChange = (itemId: string) => {
-    setSelectedItemId(itemId);
-    const item = stock.find((s) => s.id === itemId);
-    if (item) {
-      setCashPrice(item.cashPrice);
-      setTotalInstalmentPrice(item.instalmentPrice);
-      setDownPayment(item.minDownPayment);
-      setUnitCost(item.unitCost || Math.round(item.cashPrice * 0.85));
-      if (item.purchaseDate) {
-        setPurchaseDate(item.purchaseDate);
-      }
+  const handleItemSelect = (item: StockItem) => {
+    setSelectedItemId(item.id);
+    setCashPrice(item.cashPrice);
+    setTotalInstalmentPrice(item.instalmentPrice);
+    setDownPayment(item.minDownPayment);
+    setUnitCost(item.unitCost || Math.round(item.cashPrice * 0.85));
+    if (item.purchaseDate) {
+      setPurchaseDate(item.purchaseDate);
     }
   };
 
@@ -111,19 +129,44 @@ export const NewAgreementModal: React.FC<NewAgreementModalProps> = ({
     setCustomMonthlyAmount('');
   };
 
-  // Handler for Manual Monthly Amount change
-  const handleMonthlyAmountChange = (val: number) => {
-    if (val <= 0) {
-      setCustomMonthlyAmount('');
+  // Quick Down Payment Add chips
+  const handleAddDownPayment = (amount: number) => {
+    setDownPayment((prev) => Math.min(totalInstalmentPrice, prev + amount));
+  };
+
+  const handlePercentageDownPayment = (pct: number) => {
+    const val = Math.round((totalInstalmentPrice * pct) / 100);
+    setDownPayment(val);
+  };
+
+  // Quick Add Customer Submission
+  const handleSaveQuickCustomer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onAddCustomer) return;
+    if (!quickCustName.trim() || !quickCustPhone.trim()) {
+      setValidationError('Please enter customer full name and phone number.');
       return;
     }
-    setCustomMonthlyAmount(val);
-    if (val > 0 && remainingBalance > 0) {
-      const suggestedMonths = Math.ceil(remainingBalance / val);
-      if (suggestedMonths > 0 && suggestedMonths <= 60) {
-        setMonthDuration(suggestedMonths);
-      }
-    }
+
+    const created = onAddCustomer({
+      fullName: quickCustName.trim(),
+      cnic: quickCustCnic.trim() || '35202-0000000-1',
+      phone: quickCustPhone.trim(),
+      address: quickCustAddress.trim() || 'Local Area',
+      city: quickCustCity.trim() || 'Lahore',
+      rating: quickCustRating,
+      guarantor1: {
+        name: quickG1Name.trim() || 'Family Member',
+        phone: quickG1Phone.trim() || quickCustPhone.trim(),
+        cnic: '35202-0000000-2',
+        relation: 'Relative',
+        address: quickCustAddress.trim() || 'Local Area',
+      },
+    });
+
+    setSelectedCustId(created.id);
+    setShowQuickAddCustomer(false);
+    setValidationError(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -155,268 +198,284 @@ export const NewAgreementModal: React.FC<NewAgreementModalProps> = ({
     onClose();
   };
 
+  const stepLabels = [
+    { num: 1, label: 'Customer' },
+    { num: 2, label: 'Stock Item' },
+    { num: 3, label: 'Sale Terms' },
+    { num: 4, label: 'Review & Sign' },
+  ];
+
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
-      <div className="m3-card border rounded-t-[28px] sm:rounded-[28px] w-full max-w-2xl max-h-[92vh] overflow-y-auto p-4 sm:p-6 space-y-4 relative shadow-2xl m3-bottom-sheet-slide sm:animate-in" style={{ backgroundColor: 'var(--theme-surface-card)', borderColor: 'var(--theme-surface-border)' }}>
-        {/* Drag Handle Pill for Mobile */}
+      <div
+        className="m3-card border rounded-t-[28px] sm:rounded-[28px] w-full max-w-2xl max-h-[92vh] overflow-y-auto p-4 sm:p-6 space-y-4 relative shadow-2xl m3-bottom-sheet-slide sm:animate-in flex flex-col justify-between"
+        style={{
+          backgroundColor: 'var(--theme-surface-card)',
+          borderColor: 'var(--theme-surface-border)',
+        }}
+      >
+        {/* Mobile Drag Handle */}
         <div className="w-10 h-1 bg-slate-400/40 rounded-full mx-auto mb-1 sm:hidden" />
 
         <button
           onClick={onClose}
+          type="button"
           aria-label="Close dialog"
-          className="absolute right-4 top-4 p-2 rounded-full transition-all border"
-          style={{ backgroundColor: 'var(--theme-surface-input)', borderColor: 'var(--theme-surface-border)', color: 'var(--theme-text-secondary)' }}
+          className="absolute right-4 top-4 p-2 rounded-full transition-all border cursor-pointer hover:bg-surface-2"
+          style={{
+            backgroundColor: 'var(--theme-surface-input)',
+            borderColor: 'var(--theme-surface-border)',
+            color: 'var(--theme-text-secondary)',
+          }}
         >
           <X className="w-4 h-4" />
         </button>
 
-        {/* Wizard Header */}
+        {/* Wizard Header & Stepper */}
         <div>
-          <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--theme-primary)' }}>
-            Agreement Wizard
+          <span
+            className="text-caption font-bold uppercase tracking-wider font-mono-tabular"
+            style={{ color: 'var(--theme-primary)' }}
+          >
+            Step {step} of 4 · New Agreement Wizard
           </span>
-          <h2 className="text-lg sm:text-xl font-bold font-heading mt-0.5" style={{ color: 'var(--theme-text-primary)' }}>
-            New Instalment Agreement
+          <h2
+            className="text-title sm:text-heading font-extrabold font-heading mt-0.5"
+            style={{ color: 'var(--theme-text-primary)' }}
+          >
+            Create Instalment Agreement
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Set customer sale price, down payment, plan months, and delivery date
-          </p>
 
-          <div className="flex items-center gap-1.5 mt-2.5">
-            {[1, 2, 3].map((s) => (
-              <div
-                key={s}
-                className={`flex-1 h-1 rounded-full transition-all ${
-                  step >= s ? '' : 'bg-slate-500/20'
-                }`}
-                style={step >= s ? { backgroundColor: 'var(--theme-primary)' } : undefined}
-              />
-            ))}
+          {/* Stepper Tabs with Labels */}
+          <div className="grid grid-cols-4 gap-2 mt-3">
+            {stepLabels.map((s) => {
+              const isActive = step === s.num;
+              const isPassed = step > s.num;
+
+              return (
+                <div key={s.num} className="space-y-1">
+                  <div
+                    className={`h-1.5 rounded-full transition-all ${
+                      isActive
+                        ? 'bg-primary'
+                        : isPassed
+                        ? 'bg-primary/50'
+                        : 'bg-surface-2 border border-border'
+                    }`}
+                  />
+                  <div className="text-caption font-bold truncate flex items-center gap-1">
+                    <span
+                      className={`${
+                        isActive
+                          ? 'text-primary'
+                          : isPassed
+                          ? 'text-text-muted'
+                          : 'text-text-subtle'
+                      }`}
+                    >
+                      {s.num}. {s.label}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
         {validationError && (
-          <div className="flex items-center gap-2 p-3 rounded-xl border text-xs animate-in" style={{ backgroundColor: 'var(--theme-tonal-bg)', borderColor: 'var(--theme-tonal-border)', color: 'var(--theme-primary)' }}>
+          <div className="flex items-center gap-2 p-3 rounded-xl border text-caption font-bold bg-danger/10 text-danger border-danger/20">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{validationError}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-3.5">
-          
-          {/* STEP 1: SELECT CUSTOMER */}
+        <form onSubmit={handleSubmit} className="space-y-4 flex-1">
+          {/* STEP 1: SELECT CUSTOMER (ListPicker with Sticky Search) */}
           {step === 1 && (
-            <div className="space-y-3 text-xs">
-              <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: 'var(--theme-text-primary)' }}>
-                <User className="w-4 h-4 text-slate-400" />
-                <span>1. Select Customer</span>
-              </h3>
+            <div className="space-y-3">
+              <ListPicker<Customer>
+                type="customer"
+                items={customers}
+                selectedId={selectedCustId}
+                onSelect={(cust) => {
+                  setSelectedCustId(cust.id);
+                  setValidationError(null);
+                }}
+                title="Select Registered Customer Profile"
+                currencySymbol={settings.currencySymbol}
+                onAddNew={onAddCustomer ? () => setShowQuickAddCustomer(true) : undefined}
+                addNewLabel="Register New Customer"
+                maxHeight="max-h-[320px]"
+              />
 
-              <div>
-                <label className="block font-medium mb-1" style={{ color: 'var(--theme-text-primary)' }}>Customer Profile *</label>
-                <select
-                  value={selectedCustId}
-                  onChange={(e) => setSelectedCustId(e.target.value)}
-                  className="m3-input p-2 font-medium"
-                >
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.fullName} — CNIC: {c.cnic} ({c.city})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {selectedCustId && (
-                <div className="p-3 rounded-xl border space-y-1 font-mono-tabular" style={{ backgroundColor: 'var(--theme-surface-input)', borderColor: 'var(--theme-surface-border)' }}>
-                  {(() => {
-                    const cust = customers.find((c) => c.id === selectedCustId);
-                    if (!cust) return null;
-                    return (
-                      <>
-                        <div className="font-semibold text-xs" style={{ color: 'var(--theme-text-primary)' }}>{cust.fullName}</div>
-                        <div className="text-slate-400">Phone: {cust.phone} | CNIC: {cust.cnic}</div>
-                        <div className="text-slate-400 text-[11px]">Guarantor: {cust.guarantor1.name} ({cust.guarantor1.relation} - {cust.guarantor1.phone})</div>
-                      </>
-                    );
-                  })()}
+              {/* Warning for Defaulter Customer */}
+              {selectedCustomer?.rating === 'defaulter' && (
+                <div className="p-3.5 rounded-xl bg-danger/15 border border-danger/30 text-danger text-caption flex items-start gap-2.5 animate-in">
+                  <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-extrabold block text-body-sm">Caution: Customer is on DEFAULTER List</span>
+                    <span className="text-caption text-danger/90 font-medium">
+                      Prior installment default on record. Additional guarantor verification or higher down payment is advised.
+                    </span>
+                  </div>
                 </div>
               )}
 
-              <div className="pt-3 flex justify-end">
+              {/* Sticky Action Footer */}
+              <div className="pt-3 border-t border-border flex justify-end">
                 <button
                   type="button"
+                  disabled={!selectedCustId}
                   onClick={() => setStep(2)}
-                  className="m3-btn-base m3-btn-filled text-xs py-2 px-4 flex items-center gap-1.5"
+                  className={`m3-btn-base ${
+                    selectedCustId
+                      ? 'm3-btn-filled'
+                      : 'opacity-40 cursor-not-allowed bg-surface-2 text-text-subtle'
+                  } text-body-sm py-2.5 px-5 font-bold flex items-center gap-2`}
                 >
                   <span>Next: Choose Item</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
           )}
 
-          {/* STEP 2: SELECT ITEM & SHOP PURCHASE DETAILS */}
+          {/* STEP 2: SELECT STOCK ITEM (ListPicker with Sticky Search) */}
           {step === 2 && (
-            <div className="space-y-3 text-xs">
-              <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: 'var(--theme-text-primary)' }}>
-                <Package className="w-4 h-4 text-slate-400" />
-                <span>2. Select Stock Item & Purchase Record</span>
-              </h3>
+            <div className="space-y-3">
+              <ListPicker<StockItem>
+                type="stock"
+                items={availableStock}
+                selectedId={selectedItemId}
+                onSelect={(item) => {
+                  handleItemSelect(item);
+                  setValidationError(null);
+                }}
+                title="Select Available Showroom Stock Item"
+                currencySymbol={settings.currencySymbol}
+                maxHeight="max-h-[320px]"
+              />
 
-              <div>
-                <label className="block font-medium mb-1" style={{ color: 'var(--theme-text-primary)' }}>Available Product *</label>
-                <select
-                  value={selectedItemId}
-                  onChange={(e) => handleItemChange(e.target.value)}
-                  className="m3-input p-2 font-medium"
-                >
-                  {availableStock.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} — [Serial: {s.serialNumber || 'No Serial'}] — ({s.inStock} In Stock)
-                    </option>
-                  ))}
-                </select>
-              </div>
-
+              {/* Shop Purchase Record Info for Selected Item */}
               {selectedStockItem && (
-                <div className="p-3 rounded-xl border space-y-2.5" style={{ backgroundColor: 'var(--theme-surface-input)', borderColor: 'var(--theme-surface-border)' }}>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="font-semibold text-xs" style={{ color: 'var(--theme-text-primary)' }}>{selectedStockItem.name}</div>
-                      <div className="text-slate-400 text-[11px] font-mono-tabular">Serial / IMEI: {selectedStockItem.serialNumber}</div>
-                    </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-medium border font-mono-tabular" style={{ backgroundColor: 'var(--theme-tonal-bg)', color: 'var(--theme-primary)', borderColor: 'var(--theme-tonal-border)' }}>
-                      {selectedStockItem.inStock} In Showroom
+                <div className="p-3.5 rounded-xl border border-border bg-surface-2/40 space-y-2.5 text-body-sm">
+                  <div className="flex items-center justify-between text-caption font-bold">
+                    <span className="flex items-center gap-1.5 text-text">
+                      <ShoppingBag className="w-4 h-4 text-text-muted" />
+                      <span>Shop Purchase Baseline</span>
+                    </span>
+                    <span className="text-caption text-text-muted flex items-center gap-1">
+                      <EyeOff className="w-3.5 h-3.5" />
+                      <span>Confidential</span>
                     </span>
                   </div>
 
-                  {/* Shop Purchase Details */}
-                  <div className="p-2.5 rounded-lg border space-y-2" style={{ backgroundColor: 'var(--theme-surface-card)', borderColor: 'var(--theme-surface-border)' }}>
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-medium flex items-center gap-1.5" style={{ color: 'var(--theme-text-primary)' }}>
-                        <ShoppingBag className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Shop Purchase Record</span>
-                      </span>
-                      <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                        <EyeOff className="w-3 h-3" />
-                        <span>Private</span>
-                      </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-caption font-bold text-text-muted mb-1">
+                        Shop Purchase Date
+                      </label>
+                      <input
+                        type="date"
+                        value={purchaseDate}
+                        onChange={(e) => setPurchaseDate(e.target.value)}
+                        className="m3-input p-2 text-body font-mono-tabular"
+                      />
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-0.5">
-                      <div>
-                        <label className="block font-medium mb-1 text-[11px]" style={{ color: 'var(--theme-text-primary)' }}>
-                          Date of Purchase by Shop *
-                        </label>
-                        <input
-                          type="date"
-                          value={purchaseDate}
-                          onChange={(e) => setPurchaseDate(e.target.value)}
-                          className="m3-input p-1.5 font-mono-tabular text-xs"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block font-medium mb-1 text-[11px]" style={{ color: 'var(--theme-text-primary)' }}>
-                          Shop Purchase Cost (PKR) *
-                        </label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={unitCost}
-                          onChange={(e) => setUnitCost(Number(e.target.value))}
-                          className="m3-input p-1.5 font-mono-tabular font-medium text-xs"
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-caption font-bold text-text-muted mb-1">
+                        Shop Cost ({settings.currencySymbol})
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={unitCost}
+                        onChange={(e) => setUnitCost(Number(e.target.value))}
+                        className="m3-input p-2 text-body font-mono-tabular font-bold"
+                      />
                     </div>
                   </div>
                 </div>
               )}
 
-              <div className="pt-3 flex justify-between">
+              {/* Action Footer */}
+              <div className="pt-3 border-t border-border flex justify-between">
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="m3-btn-base m3-btn-outlined text-xs py-1.5 px-3 flex items-center gap-1"
+                  className="m3-btn-base m3-btn-outlined text-body-sm py-2.5 px-4 font-bold flex items-center gap-2"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <ArrowLeft className="w-4 h-4" />
                   <span>Back</span>
                 </button>
                 <button
                   type="button"
+                  disabled={!selectedItemId}
                   onClick={() => setStep(3)}
-                  className="m3-btn-base m3-btn-filled text-xs py-2 px-4 flex items-center gap-1.5"
+                  className={`m3-btn-base ${
+                    selectedItemId
+                      ? 'm3-btn-filled'
+                      : 'opacity-40 cursor-not-allowed bg-surface-2 text-text-subtle'
+                  } text-body-sm py-2.5 px-5 font-bold flex items-center gap-2`}
                 >
-                  <span>Next: Sale & Plan Details</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <span>Next: Set Terms</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
           )}
 
-          {/* STEP 3: SALE DETAILS */}
+          {/* STEP 3: FINANCIAL SALE TERMS & QUICK CHIPS */}
           {step === 3 && (
-            <div className="space-y-3.5 text-xs">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-sm flex items-center gap-2" style={{ color: 'var(--theme-text-primary)' }}>
-                  <Calculator className="w-4 h-4 text-slate-400" />
-                  <span>3. Sale Terms & Instalment Calculation</span>
-                </h3>
-              </div>
-
-              {/* Summary Stats Overview */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 font-mono-tabular">
-                <div className="p-2.5 rounded-xl border" style={{ backgroundColor: 'var(--theme-surface-input)', borderColor: 'var(--theme-surface-border)' }}>
-                  <span className="text-[10px] text-slate-400 uppercase font-medium block">
+            <div className="space-y-4 text-body-sm">
+              {/* Financial KPI Banner */}
+              <div className="grid grid-cols-3 gap-2 font-mono-tabular text-center">
+                <div className="p-3 rounded-xl border border-border bg-surface-2">
+                  <span className="text-caption text-text-muted block uppercase font-bold">
                     Shop Cost
                   </span>
-                  <span className="text-sm font-bold" style={{ color: 'var(--theme-text-primary)' }}>
+                  <span className="text-body font-extrabold text-text">
                     {settings.currencySymbol} {unitCost.toLocaleString()}
                   </span>
                 </div>
-
-                <div className="p-2.5 rounded-xl border" style={{ backgroundColor: 'var(--theme-surface-input)', borderColor: 'var(--theme-surface-border)' }}>
-                  <span className="text-[10px] text-slate-400 uppercase font-medium block">
+                <div className="p-3 rounded-xl border border-border bg-surface-2">
+                  <span className="text-caption text-text-muted block uppercase font-bold">
                     Customer Price
                   </span>
-                  <span className="text-sm font-bold" style={{ color: 'var(--theme-text-primary)' }}>
+                  <span className="text-body font-extrabold text-text">
                     {settings.currencySymbol} {totalInstalmentPrice.toLocaleString()}
                   </span>
                 </div>
-
-                <div className="p-2.5 rounded-xl border" style={{ backgroundColor: 'var(--theme-tonal-bg)', borderColor: 'var(--theme-tonal-border)' }}>
-                  <span className="text-[10px] uppercase font-medium block" style={{ color: 'var(--theme-primary)' }}>
-                    Gross Margin
+                <div className="p-3 rounded-xl border border-primary/30 bg-primary/10">
+                  <span className="text-caption text-primary block uppercase font-bold">
+                    Shop Margin
                   </span>
-                  <span className="text-sm font-bold" style={{ color: 'var(--theme-primary)' }}>
+                  <span className="text-body font-extrabold text-primary">
                     +{settings.currencySymbol} {shopProfitMargin.toLocaleString()} ({profitPercentage}%)
                   </span>
                 </div>
               </div>
 
-              {/* INPUT CONTROLS */}
-              <div className="p-3.5 rounded-xl border space-y-3" style={{ backgroundColor: 'var(--theme-surface-input)', borderColor: 'var(--theme-surface-border)' }}>
-                
-                {/* Row 1: Date of Delivery & Customer Sale Price */}
+              {/* Form Input Fields */}
+              <div className="p-4 rounded-2xl border border-border bg-surface-input space-y-4">
+                {/* Row 1: Delivery Date & Customer Sale Price */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-medium mb-1 flex items-center gap-1 text-[11px]" style={{ color: 'var(--theme-text-primary)' }}>
-                      <Truck className="w-3 h-3 text-slate-400" />
-                      <span>Date Given to Customer *</span>
+                    <label className="block font-bold mb-1.5 text-body-sm text-text">
+                      Delivery Date to Customer *
                     </label>
                     <input
                       type="date"
                       required
                       value={deliveryDate}
                       onChange={(e) => setDeliveryDate(e.target.value)}
-                      className="m3-input p-2 font-mono-tabular text-xs"
+                      className="m3-input p-2.5 font-mono-tabular text-body"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-medium mb-1 text-[11px]" style={{ color: 'var(--theme-text-primary)' }}>
-                      Customer Sale Price (PKR) *
+                    <label className="block font-bold mb-1.5 text-body-sm text-text">
+                      Total Instalment Sale Price ({settings.currencySymbol}) *
                     </label>
                     <input
                       type="number"
@@ -424,118 +483,138 @@ export const NewAgreementModal: React.FC<NewAgreementModalProps> = ({
                       min={1}
                       value={totalInstalmentPrice}
                       onChange={(e) => setTotalInstalmentPrice(Number(e.target.value))}
-                      className="m3-input p-2 font-mono-tabular font-bold text-sm"
-                      placeholder="e.g. 35000"
+                      className="m3-input p-2.5 font-mono-tabular font-bold text-body"
                     />
                   </div>
                 </div>
 
-                {/* Row 2: Down Payment & Month of Instalments */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t" style={{ borderColor: 'var(--theme-surface-border)' }}>
-                  <div>
-                    <label className="block font-medium mb-1 text-[11px]" style={{ color: 'var(--theme-text-primary)' }}>
-                      Down Payment / Advance (PKR) *
+                {/* Row 2: Down Payment with Quick Add Chips */}
+                <div className="pt-2 border-t border-border">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block font-bold text-body-sm text-text">
+                      Down Payment / Advance ({settings.currencySymbol}) *
                     </label>
-                    <input
-                      type="number"
-                      required
-                      min={0}
-                      max={totalInstalmentPrice}
-                      value={downPayment}
-                      onChange={(e) => setDownPayment(Number(e.target.value))}
-                      className="m3-input p-2 font-mono-tabular font-bold text-sm"
-                      placeholder="e.g. 5000"
-                    />
+                    <span className="text-caption font-mono-tabular text-text-muted font-semibold">
+                      Remaining: {settings.currencySymbol} {remainingBalance.toLocaleString()}
+                    </span>
                   </div>
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    max={totalInstalmentPrice}
+                    value={downPayment}
+                    onChange={(e) => setDownPayment(Number(e.target.value))}
+                    className="m3-input p-2.5 font-mono-tabular font-bold text-body"
+                  />
 
-                  <div>
-                    <label className="block font-medium mb-1 text-[11px]" style={{ color: 'var(--theme-text-primary)' }}>
-                      Month of Instalments *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min={1}
-                      max={60}
-                      value={monthDuration}
-                      onChange={(e) => handleDurationChange(Number(e.target.value))}
-                      className="m3-input p-2 font-mono-tabular font-bold text-sm"
-                      placeholder="e.g. 10"
-                    />
-                    {/* Quick Month Fill Buttons */}
-                    <div className="flex items-center gap-1 mt-1.5 overflow-x-auto no-scrollbar">
-                      <span className="text-[10px] text-slate-400 shrink-0">Quick:</span>
-                      {[1, 2, 3, 4, 6, 8, 10, 12, 15, 18, 24].map((m) => (
-                        <button
-                          key={m}
-                          type="button"
-                          onClick={() => handleDurationChange(m)}
-                          className="px-1.5 py-0.5 text-[10px] font-medium rounded font-mono-tabular transition-all shrink-0 border"
-                          style={{
-                            backgroundColor: monthDuration === m ? 'var(--theme-primary)' : 'var(--theme-surface-card)',
-                            color: monthDuration === m ? 'var(--theme-primary-foreground)' : 'var(--theme-text-secondary)',
-                            borderColor: monthDuration === m ? 'var(--theme-primary)' : 'var(--theme-surface-border)',
-                          }}
-                        >
-                          {m}M
-                        </button>
-                      ))}
-                    </div>
+                  {/* Quick-add chips for Down Payment */}
+                  <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto no-scrollbar">
+                    <span className="text-caption text-text-muted font-bold shrink-0">Quick Add:</span>
+                    {[5000, 10000, 20000].map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => handleAddDownPayment(amt)}
+                        className="px-2.5 py-1 text-caption font-bold rounded-full border border-border bg-surface-2 hover:bg-primary-container hover:text-on-primary-container transition-colors shrink-0"
+                      >
+                        +{amt.toLocaleString()}
+                      </button>
+                    ))}
+                    {[20, 25, 30].map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        onClick={() => handlePercentageDownPayment(pct)}
+                        className="px-2.5 py-1 text-caption font-bold rounded-full border border-border bg-surface-2 hover:bg-primary-container hover:text-on-primary-container transition-colors shrink-0"
+                      >
+                        {pct}% Down
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Row 3: Auto Calculated Monthly Installment & Due Day */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t" style={{ borderColor: 'var(--theme-surface-border)' }}>
-                  <div className="p-2.5 rounded-lg border" style={{ backgroundColor: 'var(--theme-surface-card)', borderColor: 'var(--theme-surface-border)' }}>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="font-medium text-[11px]" style={{ color: 'var(--theme-text-primary)' }}>
-                        Monthly Installment (PKR) *
+                {/* Row 3: Month Duration with Quick Chips */}
+                <div className="pt-2 border-t border-border">
+                  <label className="block font-bold mb-1.5 text-body-sm text-text">
+                    Duration (Months) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    max={60}
+                    value={monthDuration}
+                    onChange={(e) => handleDurationChange(Number(e.target.value))}
+                    className="m3-input p-2.5 font-mono-tabular font-bold text-body"
+                  />
+
+                  {/* Quick Month Chips */}
+                  <div className="flex items-center gap-1.5 mt-2.5 overflow-x-auto no-scrollbar">
+                    <span className="text-caption text-text-muted font-bold shrink-0">Plan:</span>
+                    {[3, 6, 8, 10, 12, 18, 24].map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => handleDurationChange(m)}
+                        className={`px-3 py-1 text-caption font-bold rounded-full border transition-all shrink-0 ${
+                          monthDuration === m
+                            ? 'bg-primary text-on-primary border-primary'
+                            : 'bg-surface-2 border-border text-text-muted hover:border-primary'
+                        }`}
+                      >
+                        {m} Months
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Row 4: Monthly Installment & Due Day */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border">
+                  <div className="p-3 rounded-xl border border-border bg-surface-2/40 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold text-body-sm text-text">
+                        Monthly Installment
                       </label>
-                      <span className="text-[10px] px-1.5 py-0.2 rounded border text-slate-400" style={{ borderColor: 'var(--theme-surface-border)' }}>
-                        Auto
+                      <span className="text-caption px-2 py-0.5 rounded bg-surface border border-border text-text-muted font-bold">
+                        Auto Formula
                       </span>
                     </div>
                     <input
                       type="number"
                       min={1}
                       value={customMonthlyAmount !== '' ? customMonthlyAmount : autoCalculatedMonthly}
-                      onChange={(e) => handleMonthlyAmountChange(Number(e.target.value))}
-                      className="m3-input p-1.5 font-mono-tabular font-bold text-xs"
+                      onChange={(e) => setCustomMonthlyAmount(Number(e.target.value))}
+                      className="m3-input p-2 font-mono-tabular font-bold text-body"
                     />
-                    <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
-                      <span>Formula: ({totalInstalmentPrice} - {downPayment}) ÷ {monthDuration} = Rs. {autoCalculatedMonthly.toLocaleString()}</span>
-                      {customMonthlyAmount !== '' && (
-                        <button
-                          type="button"
-                          onClick={() => setCustomMonthlyAmount('')}
-                          className="font-medium hover:underline"
-                          style={{ color: 'var(--theme-primary)' }}
-                        >
-                          Reset
-                        </button>
-                      )}
+                    <div className="text-caption text-text-muted mt-1 font-mono-tabular font-medium">
+                      ({totalInstalmentPrice} - {downPayment}) ÷ {monthDuration} = Rs. {autoCalculatedMonthly.toLocaleString()}
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-slate-400 font-medium mb-1 text-[11px]">Due Day</label>
+                      <label className="block text-body-sm font-bold text-text mb-1">
+                        Due Day
+                      </label>
                       <input
                         type="number"
                         min={1}
                         max={30}
                         value={dueDayOfMonth}
                         onChange={(e) => setDueDayOfMonth(Number(e.target.value))}
-                        className="m3-input p-2 font-mono-tabular font-medium text-xs"
+                        className="m3-input p-2 font-mono-tabular font-bold text-body"
                       />
                     </div>
                     <div>
-                      <label className="block text-slate-400 font-medium mb-1 text-[11px]">Cash Price</label>
+                      <label className="block text-body-sm font-bold text-text mb-1">
+                        Cash Price
+                      </label>
                       <input
                         type="number"
                         value={cashPrice}
                         onChange={(e) => setCashPrice(Number(e.target.value))}
-                        className="m3-input p-2 font-mono-tabular font-medium text-xs"
+                        className="m3-input p-2 font-mono-tabular text-body"
                       />
                     </div>
                   </div>
@@ -543,41 +622,280 @@ export const NewAgreementModal: React.FC<NewAgreementModalProps> = ({
 
                 {/* Remarks */}
                 <div>
-                  <label className="block text-slate-400 font-medium mb-1 text-[11px]">Remarks / Delivery Notes</label>
+                  <label className="block text-body-sm font-bold text-text mb-1">
+                    Agreement Remarks / Delivery Notes
+                  </label>
                   <input
                     type="text"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="e.g. Delivered with warranty card"
-                    className="m3-input p-2 text-xs"
+                    placeholder="e.g. Delivered with manufacturer warranty card"
+                    className="m3-input p-2.5 text-body"
                   />
                 </div>
-
               </div>
 
-              {/* Bottom Buttons */}
-              <div className="pt-2 flex justify-between">
+              {/* Action Footer */}
+              <div className="pt-3 border-t border-border flex justify-between">
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  className="m3-btn-base m3-btn-outlined text-xs py-1.5 px-3 flex items-center gap-1"
+                  className="m3-btn-base m3-btn-outlined text-body-sm py-2.5 px-4 font-bold flex items-center gap-2"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <ArrowLeft className="w-4 h-4" />
                   <span>Back</span>
                 </button>
                 <button
-                  type="submit"
-                  className="m3-btn-base m3-btn-filled text-xs py-2 px-5 flex items-center gap-1.5"
+                  type="button"
+                  onClick={() => setStep(4)}
+                  className="m3-btn-base m3-btn-filled text-body-sm py-2.5 px-5 font-bold flex items-center gap-2"
                 >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Save Agreement</span>
+                  <span>Review & Summary</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
-
             </div>
           )}
 
+          {/* STEP 4: REVIEW & CONFIRMATION */}
+          {step === 4 && (
+            <div className="space-y-4 text-body-sm">
+              <div className="p-4 rounded-2xl border border-primary/30 bg-primary/5 space-y-3.5">
+                <div className="flex items-center gap-2 text-primary font-bold text-title">
+                  <FileCheck className="w-5 h-5" />
+                  <span>Agreement Summary Preview</span>
+                </div>
+
+                {/* Customer Snapshot */}
+                {selectedCustomer && (
+                  <div className="p-3.5 rounded-xl bg-surface border border-border flex items-center justify-between">
+                    <div>
+                      <div className="font-extrabold text-title text-text">
+                        {selectedCustomer.fullName} ({selectedCustomer.customerCode})
+                      </div>
+                      <div className="text-body-sm text-text-muted font-mono-tabular font-medium">
+                        CNIC: {selectedCustomer.cnic} · Phone: {selectedCustomer.phone}
+                      </div>
+                      <div className="text-caption text-text-muted mt-0.5 font-medium">
+                        Guarantor: {selectedCustomer.guarantor1.name} ({selectedCustomer.guarantor1.phone})
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setStep(1)}
+                      className="text-body-sm text-primary font-bold hover:underline p-1"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                )}
+
+                {/* Item Snapshot */}
+                {selectedStockItem && (
+                  <div className="p-3.5 rounded-xl bg-surface border border-border flex items-center justify-between">
+                    <div>
+                      <div className="font-extrabold text-title text-text">
+                        {selectedStockItem.name}
+                      </div>
+                      <div className="text-body-sm text-text-muted font-mono-tabular font-medium">
+                        {selectedStockItem.brand} {selectedStockItem.model} · Serial: {selectedStockItem.serialNumber || 'N/A'}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setStep(2)}
+                      className="text-body-sm text-primary font-bold hover:underline p-1"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                )}
+
+                {/* Financial Terms Grid */}
+                <div className="p-3.5 rounded-xl bg-surface border border-border grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono-tabular text-center">
+                  <div>
+                    <span className="text-caption text-text-muted block font-bold">Total Sale</span>
+                    <span className="font-extrabold text-title text-text">
+                      {settings.currencySymbol} {totalInstalmentPrice.toLocaleString()}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-caption text-text-muted block font-bold">Down Payment</span>
+                    <span className="font-extrabold text-title text-success">
+                      {settings.currencySymbol} {downPayment.toLocaleString()}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-caption text-text-muted block font-bold">Monthly Due</span>
+                    <span className="font-extrabold text-title text-primary">
+                      {settings.currencySymbol} {finalMonthlyInstalment.toLocaleString()}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-caption text-text-muted block font-bold">Term</span>
+                    <span className="font-extrabold text-title text-text">
+                      {monthDuration} Months
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-caption text-text-muted flex items-center justify-between px-1 font-semibold">
+                  <span>First Due Date: {deliveryDate.slice(0, 7)}-{dueDayOfMonth.toString().padStart(2, '0')}</span>
+                  <span>Estimated Profit: +{settings.currencySymbol} {shopProfitMargin.toLocaleString()}</span>
+                </div>
+              </div>
+
+              {/* Action Footer */}
+              <div className="pt-3 border-t border-border flex justify-between">
+                <button
+                  type="button"
+                  onClick={() => setStep(3)}
+                  className="m3-btn-base m3-btn-outlined text-body-sm py-2.5 px-4 font-bold flex items-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Back to Terms</span>
+                </button>
+                <button
+                  type="submit"
+                  className="m3-btn-base m3-btn-filled text-body-sm py-2.5 px-6 font-bold flex items-center gap-2 shadow-md"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Confirm & Issue Agreement</span>
+                </button>
+              </div>
+            </div>
+          )}
         </form>
+
+        {/* Quick Add Customer Drawer/Modal */}
+        {showQuickAddCustomer && (
+          <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
+            <div className="m3-card max-w-md w-full p-5 space-y-3 relative shadow-2xl bg-surface border border-border">
+              <div className="flex items-center justify-between border-b border-border pb-2.5">
+                <h3 className="font-bold text-title text-text flex items-center gap-2">
+                  <User className="w-5 h-5 text-primary" />
+                  <span>Quick Register Customer</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickAddCustomer(false)}
+                  className="p-1 rounded-full text-text-muted hover:text-text"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3 text-body-sm">
+                <div>
+                  <label className="block text-body-sm font-bold text-text mb-1">
+                    Customer Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Muhammad Asif"
+                    value={quickCustName}
+                    onChange={(e) => setQuickCustName(e.target.value)}
+                    className="m3-input p-2.5 text-body"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-body-sm font-bold text-text mb-1">
+                      Phone Number *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="0300-1234567"
+                      value={quickCustPhone}
+                      onChange={(e) => setQuickCustPhone(e.target.value)}
+                      className="m3-input p-2.5 font-mono-tabular text-body"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-body-sm font-bold text-text mb-1">
+                      CNIC Number
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="35202-1234567-1"
+                      value={quickCustCnic}
+                      onChange={(e) => setQuickCustCnic(e.target.value)}
+                      className="m3-input p-2.5 font-mono-tabular text-body"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-body-sm font-bold text-text mb-1">City</label>
+                    <input
+                      type="text"
+                      value={quickCustCity}
+                      onChange={(e) => setQuickCustCity(e.target.value)}
+                      className="m3-input p-2.5 text-body"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-body-sm font-bold text-text mb-1">
+                      Initial Rating
+                    </label>
+                    <select
+                      value={quickCustRating}
+                      onChange={(e) => setQuickCustRating(e.target.value as CustomerRating)}
+                      className="m3-input p-2.5 text-body font-bold"
+                    >
+                      <option value="good">Good (Normal)</option>
+                      <option value="watch">Watchlist</option>
+                      <option value="defaulter">Defaulter</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl border border-border bg-surface-2/40 space-y-2">
+                  <span className="text-caption font-bold text-text-muted block uppercase tracking-wider">
+                    Guarantor 1 Contact
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      placeholder="Guarantor Name"
+                      value={quickG1Name}
+                      onChange={(e) => setQuickG1Name(e.target.value)}
+                      className="m3-input p-2 text-body"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Guarantor Phone"
+                      value={quickG1Phone}
+                      onChange={(e) => setQuickG1Phone(e.target.value)}
+                      className="m3-input p-2 font-mono-tabular text-body"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-2.5 border-t border-border flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowQuickAddCustomer(false)}
+                  className="m3-btn-base m3-btn-text text-body-sm py-2 px-3.5 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveQuickCustomer}
+                  className="m3-btn-base m3-btn-filled text-body-sm py-2 px-4 font-bold"
+                >
+                  Save & Select
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

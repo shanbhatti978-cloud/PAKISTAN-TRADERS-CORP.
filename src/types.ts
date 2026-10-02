@@ -173,6 +173,10 @@ export interface CashBookEntry {
 
 export type M3ThemeColor = 'blue' | 'red' | 'green' | 'purple' | 'amber' | 'teal' | 'indigo';
 
+export type DrawerSidePreference = 'left' | 'right' | 'auto';
+
+export type FontSizePreference = 'normal' | 'large' | 'extra_large';
+
 export interface ShopSettings {
   shopName: string;
   proprietorName: string;
@@ -184,7 +188,11 @@ export interface ShopSettings {
   pinCode: string; // Default '1234'
   isLocked: boolean;
   themeMode?: 'dark' | 'light';
-  colorScheme?: M3ThemeColor | string;
+  colorScheme?: string;
+  drawerSide?: DrawerSidePreference;
+  liteMode?: boolean;
+  animatedBackground?: boolean;
+  fontSize?: FontSizePreference;
 }
 
 export type UserRole = 'ADMIN' | 'SUPERVISOR' | 'VIEWER';

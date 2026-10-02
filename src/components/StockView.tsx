@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   Package,
   Plus,
-  Search,
   Tag,
   Boxes,
   CheckCircle2,
@@ -22,6 +21,7 @@ import { StockItem, ProductCategory, ShopSettings, StockMovement, CategoryItem }
 import { CategoryManagementView } from './CategoryManagementView';
 import { CategoryThresholdModal } from './CategoryThresholdModal';
 import { getCategoryStockStatuses, isItemLowStock } from '../utils/stockThresholds';
+import { ExpandableSearch } from './ExpandableSearch';
 
 interface StockViewProps {
   stock: StockItem[];
@@ -170,7 +170,7 @@ export const StockView: React.FC<StockViewProps> = ({
           <FolderTree className="w-4 h-4" />
           <span>Category Groups ({categories.length})</span>
           {lowStockCategories.length > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full border text-[10px] font-mono-tabular font-extrabold" style={{ backgroundColor: 'var(--theme-tonal-bg)', color: 'var(--theme-primary)', borderColor: 'var(--theme-tonal-border)' }}>
+            <span className="px-2 py-0.5 rounded-full border text-caption font-mono-tabular font-extrabold" style={{ backgroundColor: 'var(--theme-tonal-bg)', color: 'var(--theme-primary)', borderColor: 'var(--theme-tonal-border)' }}>
               {lowStockCategories.length} Low
             </span>
           )}
@@ -179,7 +179,7 @@ export const StockView: React.FC<StockViewProps> = ({
         {stockMovements.length > 0 && (
           <button
             onClick={() => setSubTab('movements')}
-            className="px-4 py-2 text-xs font-bold rounded-full transition-all flex items-center gap-2 border"
+            className="px-4 py-2 text-body-sm font-bold rounded-full transition-all flex items-center gap-2 border"
             style={{
               backgroundColor: subTab === 'movements' ? 'var(--theme-tonal-bg)' : 'transparent',
               color: subTab === 'movements' ? 'var(--theme-primary)' : 'var(--theme-text-secondary)',
@@ -202,14 +202,14 @@ export const StockView: React.FC<StockViewProps> = ({
         />
       ) : subTab === 'movements' ? (
         <div className="m3-card p-5 space-y-4">
-          <h2 className="text-base font-bold flex items-center gap-2 font-heading" style={{ color: 'var(--theme-text-primary)' }}>
+          <h2 className="text-title font-bold flex items-center gap-2 font-heading" style={{ color: 'var(--theme-text-primary)' }}>
             <History className="w-5 h-5" style={{ color: 'var(--theme-primary)' }} />
             Stock Movements Log
           </h2>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-body-sm">
               <thead>
-                <tr className="border-b text-[10px] font-bold uppercase tracking-wider text-slate-400" style={{ borderColor: 'var(--theme-surface-border)' }}>
+                <tr className="border-b text-caption font-bold uppercase tracking-wider text-text-muted" style={{ borderColor: 'var(--theme-surface-border)' }}>
                   <th className="p-3">Date</th>
                   <th className="p-3">Type</th>
                   <th className="p-3">Item Name</th>
@@ -221,17 +221,17 @@ export const StockView: React.FC<StockViewProps> = ({
               </thead>
               <tbody className="divide-y font-mono-tabular" style={{ borderColor: 'var(--theme-surface-border)' }}>
                 {stockMovements.map((m) => (
-                  <tr key={m.id} className="hover:bg-slate-500/5">
-                    <td className="p-3 text-slate-400">{m.date}</td>
+                  <tr key={m.id} className="hover:bg-primary/5">
+                    <td className="p-3 text-text-muted">{m.date}</td>
                     <td className="p-3">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border" style={{ backgroundColor: 'var(--theme-tonal-bg)', color: 'var(--theme-primary)', borderColor: 'var(--theme-tonal-border)' }}>
+                      <span className="px-2.5 py-1 rounded-full text-caption font-bold uppercase border" style={{ backgroundColor: 'var(--theme-tonal-bg)', color: 'var(--theme-primary)', borderColor: 'var(--theme-tonal-border)' }}>
                         {m.type}
                       </span>
                     </td>
                     <td className="p-3 font-bold" style={{ color: 'var(--theme-text-primary)' }}>{m.itemName}</td>
                     <td className="p-3">{m.serialNumber || 'N/A'}</td>
                     <td className="p-3 font-bold">{m.quantity}</td>
-                    <td className="p-3 text-slate-400">{m.refDocument}</td>
+                    <td className="p-3 text-text-muted">{m.refDocument}</td>
                     <td className="p-3">{m.counterLocation}</td>
                   </tr>
                 ))}
@@ -244,37 +244,48 @@ export const StockView: React.FC<StockViewProps> = ({
           {/* Header Bar */}
           <div className="m3-card p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-xl font-extrabold font-heading flex items-center gap-2" style={{ color: 'var(--theme-text-primary)' }}>
+              <h1 className="text-heading font-extrabold font-heading flex items-center gap-2" style={{ color: 'var(--theme-text-primary)' }}>
                 <Boxes className="w-5 h-5" style={{ color: 'var(--theme-primary)' }} />
                 Master Inventory & Booking
               </h1>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-caption text-text-muted mt-0.5 font-medium">
                 Total {stock.length} models in showroom & warehouse • Available units ready for customer booking.
               </p>
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+            <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap justify-between sm:justify-end">
+              <ExpandableSearch
+                value={searchQuery}
+                onChange={(val) => setSearchQuery?.(val)}
+                placeholder="Search stock"
+                resultCount={{ current: filtered.length, total: stock.length }}
+                recentKey="stock"
+                shortcut="/"
+                chipLabelPrefix="Stock"
+              />
+
               <button
                 type="button"
                 onClick={() => setShowThresholdSettingsModal(true)}
-                className="m3-btn-base m3-btn-outlined text-xs"
+                className="m3-btn-base m3-btn-outlined text-body-sm font-bold"
                 title="Configure low-stock minimum thresholds"
               >
                 <Sliders className="w-3.5 h-3.5" />
-                <span>Threshold Settings</span>
+                <span className="hidden sm:inline">Threshold Settings</span>
+                <span className="sm:hidden">Thresholds</span>
               </button>
 
               <button
                 onClick={onOpenReceiveStock}
-                className="m3-btn-base m3-btn-tonal text-xs"
+                className="m3-btn-base m3-btn-tonal text-body-sm font-bold shrink-0"
               >
                 <Boxes className="w-3.5 h-3.5" />
-                <span>Receive Stock</span>
+                <span>Receive</span>
               </button>
 
               <button
                 onClick={() => setShowAddModal(true)}
-                className="m3-btn-base m3-btn-filled text-xs"
+                className="m3-btn-base m3-btn-filled text-body-sm font-bold shrink-0"
               >
                 <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>New Model</span>
@@ -282,33 +293,28 @@ export const StockView: React.FC<StockViewProps> = ({
             </div>
           </div>
 
-          {/* In-View Search & Filter Bar */}
-          <div className="m3-card p-3 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search inventory by Item, Brand, Model, Serial #..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery?.(e.target.value)}
-                className="m3-input pl-9 pr-8"
-              />
+          {/* Empty State */}
+          {filtered.length === 0 && (
+            <div className="m3-card p-10 text-center space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-full flex items-center justify-center bg-surface-variant text-text-muted">
+                <Boxes className="w-6 h-6" />
+              </div>
+              <h3 className="text-title font-bold text-text">No inventory match found</h3>
+              <p className="text-body-sm text-text-muted max-w-md mx-auto">
+                {searchQuery
+                  ? `No match. Try name, CNIC, phone or serial.`
+                  : 'No inventory items in stock.'}
+              </p>
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery?.('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600"
+                  className="m3-btn-base m3-btn-tonal text-caption py-2 px-4 font-bold"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  Clear Search Query
                 </button>
               )}
             </div>
-
-            <div className="flex items-center gap-2 text-xs text-slate-400 w-full sm:w-auto justify-between sm:justify-end">
-              <span>
-                Showing <strong style={{ color: 'var(--theme-text-primary)' }}>{filtered.length}</strong> of {stock.length} inventory items
-              </span>
-            </div>
-          </div>
+          )}
 
           {/* Grid of Stock Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -319,38 +325,38 @@ export const StockView: React.FC<StockViewProps> = ({
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border font-mono-tabular" style={{ backgroundColor: 'var(--theme-tonal-bg)', color: 'var(--theme-primary)', borderColor: 'var(--theme-tonal-border)' }}>
+                    <span className="text-caption font-bold px-2.5 py-1 rounded-full border font-mono-tabular" style={{ backgroundColor: 'var(--theme-tonal-bg)', color: 'var(--theme-primary)', borderColor: 'var(--theme-tonal-border)' }}>
                       {item.category}
                     </span>
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border font-mono-tabular" style={{ backgroundColor: 'var(--theme-tonal-bg)', color: 'var(--theme-primary)', borderColor: 'var(--theme-tonal-border)' }}>
+                    <span className="text-caption font-semibold px-2.5 py-1 rounded-full border font-mono-tabular" style={{ backgroundColor: 'var(--theme-tonal-bg)', color: 'var(--theme-primary)', borderColor: 'var(--theme-tonal-border)' }}>
                       {item.inStock > 0 ? `${item.inStock} Available` : 'Out of Stock'}
                     </span>
                   </div>
 
                   <div>
-                    <h3 className="text-base font-bold font-heading" style={{ color: 'var(--theme-text-primary)' }}>
+                    <h3 className="text-title font-bold font-heading text-text" style={{ color: 'var(--theme-text-primary)' }}>
                       {item.name}
                     </h3>
-                    <div className="text-xs text-slate-400 font-mono-tabular mt-0.5">
+                    <div className="text-caption text-text-muted font-mono-tabular mt-0.5 font-medium">
                       Brand: {item.brand} | Model: {item.model}
                     </div>
                     {item.serialNumber && (
-                      <div className="text-[11px] text-slate-400 font-mono-tabular mt-0.5">
+                      <div className="text-caption text-text-muted font-mono-tabular mt-0.5 font-medium">
                         S/N: {item.serialNumber}
                       </div>
                     )}
                   </div>
 
-                  <div className="pt-2 border-t text-xs grid grid-cols-2 gap-2" style={{ borderColor: 'var(--theme-surface-border)' }}>
+                  <div className="pt-2 border-t text-body-sm grid grid-cols-2 gap-2" style={{ borderColor: 'var(--theme-surface-border)' }}>
                     <div>
-                      <div className="text-slate-400 text-[10px]">Cash Price</div>
-                      <div className="font-bold font-mono-tabular" style={{ color: 'var(--theme-text-primary)' }}>
+                      <div className="text-text-muted text-caption font-bold">Cash Price</div>
+                      <div className="font-extrabold font-mono-tabular text-body" style={{ color: 'var(--theme-text-primary)' }}>
                         {settings.currencySymbol} {item.cashPrice.toLocaleString()}
                       </div>
                     </div>
                     <div>
-                      <div className="text-slate-400 text-[10px]">Instalment Price</div>
-                      <div className="font-bold font-mono-tabular" style={{ color: 'var(--theme-primary)' }}>
+                      <div className="text-text-muted text-caption font-bold">Instalment Price</div>
+                      <div className="font-extrabold font-mono-tabular text-body" style={{ color: 'var(--theme-primary)' }}>
                         {settings.currencySymbol} {item.instalmentPrice.toLocaleString()}
                       </div>
                     </div>
@@ -361,16 +367,16 @@ export const StockView: React.FC<StockViewProps> = ({
                   {item.inStock > 0 && onOpenNewBooking && (
                     <button
                       onClick={() => onOpenNewBooking(item.id)}
-                      className="m3-btn-base m3-btn-filled text-xs py-1.5 flex-1"
+                      className="m3-btn-base m3-btn-filled text-body-sm py-2 flex-1 font-bold"
                     >
                       <span>Book Instalment</span>
                     </button>
                   )}
                   <button
                     onClick={() => setEditingItem(item)}
-                    className="m3-btn-base m3-btn-outlined text-xs py-1.5"
+                    className="m3-btn-base m3-btn-outlined text-body-sm py-2 px-3 font-bold"
                   >
-                    <Edit className="w-3.5 h-3.5" />
+                    <Edit className="w-4 h-4" />
                   </button>
                 </div>
               </div>

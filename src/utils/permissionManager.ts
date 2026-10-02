@@ -85,8 +85,8 @@ export class PermissionManager {
       default:
         return {
           label: role,
-          badgeClass: 'bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-500/30',
-          dotColor: 'bg-slate-500',
+          badgeClass: 'bg-surface-2 text-text border-border',
+          dotColor: 'bg-text-subtle',
         };
     }
   }

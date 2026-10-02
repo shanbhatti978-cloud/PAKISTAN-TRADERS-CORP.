@@ -96,8 +96,8 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
                     }`}
                   />
                   <span
-                    className={`text-[10px] font-heading font-extrabold tracking-tight transition-colors ${
-                      isActive ? 'text-on-primary-container' : 'text-text-subtle group-hover:text-text'
+                    className={`text-caption font-heading font-extrabold tracking-tight transition-colors ${
+                      isActive ? 'text-on-primary-container' : 'text-text-muted group-hover:text-text'
                     }`}
                   >
                     {item.label}
@@ -106,7 +106,7 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
                   {/* Badges */}
                   {item.badge !== undefined && item.badge > 0 && (
                     <span
-                      className={`absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-mono-tabular font-extrabold flex items-center justify-center shadow-xs ${
+                      className={`absolute -top-1.5 -right-1.5 min-w-[20px] h-[20px] px-1 rounded-full text-caption font-mono-tabular font-extrabold flex items-center justify-center shadow-xs ${
                         item.badgeColor || 'bg-primary text-on-primary'
                       }`}
                     >
@@ -133,7 +133,7 @@ export const NavigationRail: React.FC<NavigationRailProps> = ({
             <span className="bg-text-subtle rounded-xs" />
             <span className="bg-text-subtle rounded-xs" />
           </div>
-          <span className="text-[10px] font-heading font-extrabold">More</span>
+          <span className="text-caption font-heading font-extrabold">More</span>
         </button>
       </div>
     </aside>

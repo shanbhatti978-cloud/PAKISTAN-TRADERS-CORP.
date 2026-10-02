@@ -3,7 +3,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useQistStore } from './data/store';
 import { getLowStockCategories } from './utils/stockThresholds';
 import { Header } from './components/Header';
-import { NavigationRail } from './components/NavigationRail';
 import { BottomDock } from './components/BottomDock';
 import { MoreSheet } from './components/MoreSheet';
 import { ToastContainer } from './components/ToastContainer';
@@ -16,9 +15,11 @@ import { NewAgreementModal } from './components/NewAgreementModal';
 import { ReceiveStockModal } from './components/ReceiveStockModal';
 import { ReversePaymentModal } from './components/ReversePaymentModal';
 import { Customer, Agreement, Payment } from './types';
-import { M3ColorSchemeName, applyThemeToDocument } from './theme/m3Theme';
+import { M3ColorSchemeName } from './theme/m3Theme';
+import { applyGlassThemeToDocument, migrateColorScheme } from './theme/glassThemes';
 import { NavTabId, normalizeTabId } from './config/navigation';
 import { AppActionsProvider, useAppActions } from './context/AppActionsContext';
+import { AmbientBackground } from './components/AmbientBackground';
 
 // Lazy-loaded Views & Modals for bundle optimization
 const HomeView = lazy(() => import('./components/HomeView').then((m) => ({ default: m.HomeView })));
@@ -86,21 +87,67 @@ function MainAppLayout() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showUserLoginModal, setShowUserLoginModal] = useState<boolean>(false);
   const [showMoreSheet, setShowMoreSheet] = useState<boolean>(false);
+  const [drawerSide, setDrawerSide] = useState<'left' | 'right'>('left');
 
-  // Material 3 Theme Mode & ColorScheme
+  // Glass Material Theme Mode & ColorScheme
   const themeMode = settings.themeMode || 'dark';
-  const colorScheme: M3ColorSchemeName = (settings.colorScheme as M3ColorSchemeName) || 'blue';
+  const colorScheme = settings.colorScheme || 'aurora';
   const isLight = themeMode === 'light';
 
   useEffect(() => {
     const root = document.documentElement;
     root.classList.add('theme-transition');
-    applyThemeToDocument(colorScheme, themeMode);
+    applyGlassThemeToDocument(colorScheme, themeMode, {
+      liteMode: settings.liteMode,
+      animatedBackground: settings.animatedBackground,
+      fontSize: settings.fontSize,
+    });
     const timer = setTimeout(() => {
       root.classList.remove('theme-transition');
     }, 250);
     return () => clearTimeout(timer);
-  }, [themeMode, colorScheme]);
+  }, [themeMode, colorScheme, settings.liteMode, settings.animatedBackground, settings.fontSize]);
+
+  // Mobile edge-swipe from screen edge to open drawer
+  useEffect(() => {
+    const handleTouchStart = (e: TouchEvent) => {
+      if (showMoreSheet) return;
+      const touch = e.touches[0];
+      if (!touch) return;
+      const isRtl = document.dir === 'rtl' || document.documentElement.dir === 'rtl';
+      const triggerEdge = (settings.drawerSide === 'right' || (isRtl && settings.drawerSide !== 'left'))
+        ? 'right'
+        : 'left';
+
+      const isStartEdge = triggerEdge === 'left' ? touch.clientX <= 24 : touch.clientX >= window.innerWidth - 24;
+      if (!isStartEdge) return;
+
+      let movedInward = false;
+      const handleMove = (ev: TouchEvent) => {
+        const t = ev.touches[0];
+        if (!t) return;
+        const deltaX = triggerEdge === 'left' ? t.clientX - touch.clientX : touch.clientX - t.clientX;
+        if (deltaX >= 40 && Math.abs(t.clientY - touch.clientY) < 45) {
+          movedInward = true;
+        }
+      };
+
+      const handleEnd = () => {
+        if (movedInward) {
+          setDrawerSide(triggerEdge);
+          setShowMoreSheet(true);
+        }
+        window.removeEventListener('touchmove', handleMove);
+        window.removeEventListener('touchend', handleEnd);
+      };
+
+      window.addEventListener('touchmove', handleMove, { passive: true });
+      window.addEventListener('touchend', handleEnd, { passive: true });
+    };
+
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    return () => window.removeEventListener('touchstart', handleTouchStart);
+  }, [showMoreSheet, settings.drawerSide]);
 
   const handleToggleThemeMode = () => {
     setSettings((prev) => ({
@@ -109,7 +156,7 @@ function MainAppLayout() {
     }));
   };
 
-  const handleSelectColorScheme = (scheme: M3ColorSchemeName) => {
+  const handleSelectColorScheme = (scheme: string) => {
     setSettings((prev) => ({
       ...prev,
       colorScheme: scheme,
@@ -173,18 +220,14 @@ function MainAppLayout() {
         />
       )}
 
-      {/* Desktop Navigation Rail (Screen >= 768px) */}
-      <NavigationRail
-        activeTab={activeTab}
-        setActiveTab={(t) => setActiveTabRaw(t)}
-        overdueCount={overdueCount}
-        lowStockCount={lowStockCount}
-        currentUserRole={currentUser?.role}
-        onOpenMoreSheet={() => setShowMoreSheet(true)}
+      {/* Ambient Background with floating blurred blobs */}
+      <AmbientBackground
+        liteMode={settings.liteMode}
+        animatedBackground={settings.animatedBackground}
       />
 
       {/* Main App Container */}
-      <div className="flex-1 flex flex-col min-w-0 pb-24 md:pb-6">
+      <div className="flex-1 flex flex-col min-w-0 pb-[calc(96px+env(safe-area-inset-bottom))]">
         
         {/* Sticky App Bar Header */}
         <Header
@@ -197,7 +240,10 @@ function MainAppLayout() {
           onOpenNewPayment={() => actions.runAction('collect_payment')}
           onOpenReceiveStock={() => actions.runAction('receive_stock')}
           onOpenBusinessReport={() => actions.runAction('business_report')}
-          onToggleDrawer={() => setShowMoreSheet(true)}
+          onToggleDrawer={(side) => {
+            setDrawerSide(side || 'left');
+            setShowMoreSheet(true);
+          }}
           onToggleLock={() => setSettings((prev) => ({ ...prev, isLocked: !prev.isLocked }))}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -386,6 +432,7 @@ function MainAppLayout() {
         setActiveTab={(t) => setActiveTabRaw(t)}
         currentUser={currentUser}
         settings={settings}
+        side={drawerSide}
         themeMode={themeMode}
         onToggleThemeMode={handleToggleThemeMode}
         colorScheme={colorScheme}
@@ -415,7 +462,6 @@ function MainAppLayout() {
         <NewAgreementModal
           customers={customers}
           stock={stock}
-          categories={categories}
           settings={settings}
           preselectedCustomerId={actions.preselectedCustomerId}
           preselectedItemId={actions.preselectedItemId}
@@ -468,11 +514,11 @@ function MainAppLayout() {
           settings={settings}
           onClose={() => actions.setPaymentToReverse(null)}
           onConfirmReversal={(paymentId, reason) => {
-            const res = reversePayment(paymentId, reason);
-            if (res.success) {
+            try {
+              reversePayment(paymentId, reason);
               actions.showToast('Payment transaction reversed & ledger updated.', 'success');
-            } else {
-              actions.showToast(res.message || 'Reversal failed.', 'error');
+            } catch (err: any) {
+              actions.showToast(err?.message || 'Reversal failed.', 'error');
             }
           }}
         />

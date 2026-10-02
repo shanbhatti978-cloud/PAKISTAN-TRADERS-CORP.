@@ -45,7 +45,7 @@ export const ReversePaymentModal: React.FC<ReversePaymentModalProps> = ({
         style={{ backgroundColor: 'var(--theme-surface-card)', borderColor: 'var(--theme-surface-border)' }}
       >
         {/* Android Material 3 Drag Handle Pill for Mobile */}
-        <div className="w-10 h-1 bg-slate-400/40 rounded-full mx-auto mb-1 sm:hidden" />
+        <div className="w-10 h-1 bg-text-muted/30 rounded-full mx-auto mb-1 sm:hidden" />
 
         <button
           type="button"
@@ -58,42 +58,42 @@ export const ReversePaymentModal: React.FC<ReversePaymentModalProps> = ({
         </button>
 
         <div>
-          <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--theme-primary)' }}>Authorized Audit Corrective Action</span>
-          <h2 className="text-xl font-extrabold font-heading mt-0.5 flex items-center gap-2" style={{ color: 'var(--theme-text-primary)' }}>
+          <span className="text-caption font-bold uppercase tracking-wider" style={{ color: 'var(--theme-primary)' }}>Authorized Audit Corrective Action</span>
+          <h2 className="text-heading font-extrabold font-heading mt-0.5 flex items-center gap-2" style={{ color: 'var(--theme-text-primary)' }}>
             <RotateCcw className="w-5 h-5" style={{ color: 'var(--theme-primary)' }} />
             Reverse Payment Transaction
           </h2>
         </div>
 
         {validationError && (
-          <div className="flex items-center gap-2 p-3 rounded-xl border text-xs animate-in" style={{ backgroundColor: 'var(--theme-tonal-bg)', borderColor: 'var(--theme-tonal-border)', color: 'var(--theme-primary)' }}>
+          <div className="flex items-center gap-2 p-3 rounded-xl border text-caption font-bold animate-in" style={{ backgroundColor: 'var(--theme-tonal-bg)', borderColor: 'var(--theme-tonal-border)', color: 'var(--theme-primary)' }}>
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{validationError}</span>
           </div>
         )}
 
-        <div className="p-3 border rounded-xl space-y-1 text-xs" style={{ backgroundColor: 'var(--theme-surface-input)', borderColor: 'var(--theme-surface-border)' }}>
-          <div className="font-bold" style={{ color: 'var(--theme-primary)' }}>Receipt #{payment.receiptNumber}</div>
-          <div style={{ color: 'var(--theme-text-primary)' }}>Customer: {payment.customerName}</div>
-          <div className="font-mono-tabular" style={{ color: 'var(--theme-text-primary)' }}>
+        <div className="p-3.5 border rounded-xl space-y-1.5 text-body-sm" style={{ backgroundColor: 'var(--theme-surface-input)', borderColor: 'var(--theme-surface-border)' }}>
+          <div className="font-bold text-body" style={{ color: 'var(--theme-primary)' }}>Receipt #{payment.receiptNumber}</div>
+          <div style={{ color: 'var(--theme-text-primary)' }}>Customer: <strong className="font-bold">{payment.customerName}</strong></div>
+          <div className="font-mono-tabular font-bold" style={{ color: 'var(--theme-text-primary)' }}>
             Amount: {settings.currencySymbol} {payment.amountPaid.toLocaleString()}
           </div>
-          <div className="text-[10px] text-text-subtle">Date: {payment.date} | Method: {payment.paymentMethod}</div>
+          <div className="text-caption text-text-muted font-medium">Date: {payment.date} | Method: {payment.paymentMethod}</div>
         </div>
 
-        <p className="text-xs text-text-muted">
+        <p className="text-caption font-medium text-text-muted">
           Reversing this transaction will restore the unpaid balance on the customer schedule and record a compensating cashbook outflow entry. Financial records are never hard-deleted.
         </p>
 
-        <div className="space-y-1 text-xs">
-          <label className="block font-semibold" style={{ color: 'var(--theme-text-primary)' }}>Reason for Reversal *</label>
+        <div className="space-y-1.5 text-body-sm">
+          <label className="block font-bold" style={{ color: 'var(--theme-text-primary)' }}>Reason for Reversal *</label>
           <textarea
             rows={3}
             required
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="e.g. Duplicate collection entry / Cash returned to customer"
-            className="m3-input w-full p-2.5 font-sans text-xs"
+            className="m3-input w-full p-3 font-sans text-body"
           />
         </div>
 
@@ -101,13 +101,13 @@ export const ReversePaymentModal: React.FC<ReversePaymentModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="m3-btn-base m3-btn-outlined text-xs"
+            className="m3-btn-base m3-btn-outlined text-body-sm py-2.5 px-4 font-bold"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="m3-btn-base m3-btn-filled text-xs"
+            className="m3-btn-base m3-btn-filled text-body-sm py-2.5 px-4 font-bold"
           >
             Confirm Reversal
           </button>

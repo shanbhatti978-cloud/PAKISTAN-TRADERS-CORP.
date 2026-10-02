@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   FolderTree,
   Plus,
-  Search,
   Edit,
   Trash2,
   X,
@@ -11,6 +10,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { CategoryItem, StockItem } from '../types';
+import { ExpandableSearch } from './ExpandableSearch';
 
 interface CategoryManagementViewProps {
   categories: CategoryItem[];
@@ -163,40 +163,64 @@ export const CategoryManagementView: React.FC<CategoryManagementViewProps> = ({
       <div className="m3-card p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded bg-primary-container text-on-primary-container border border-border text-[10px] font-bold uppercase tracking-wider">
+            <span className="px-2.5 py-0.5 rounded bg-primary-container text-on-primary-container border border-border text-caption font-bold uppercase tracking-wider">
               Inventory Groups
             </span>
-            <span className="text-text-subtle text-xs">• {categories.length} Groups Defined</span>
+            <span className="text-text-muted text-caption font-semibold">• {categories.length} Groups Defined</span>
           </div>
-          <h1 className="text-xl font-extrabold text-text font-heading mt-1 flex items-center gap-2">
+          <h1 className="text-heading font-extrabold text-text font-heading mt-1 flex items-center gap-2">
             <FolderTree className="w-5 h-5 text-primary" />
             Stock Categories Management
           </h1>
-          <p className="text-xs text-text-muted mt-0.5">
+          <p className="text-caption text-text-muted mt-0.5 font-medium">
             Define, organize, and group inventory items (e.g. Home Appliances, Mobiles, Bikes, TVs) for easy stock intake and sales.
           </p>
         </div>
 
-        <button
-          onClick={handleOpenAddModal}
-          className="m3-btn-base m3-btn-filled text-xs py-2.5 px-4 shadow-1 active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Define New Category</span>
-        </button>
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+          <ExpandableSearch
+            value={searchQuery}
+            onChange={(val) => setSearchQuery(val)}
+            placeholder="Search categories"
+            resultCount={{ current: filteredCategories.length, total: categories.length }}
+            recentKey="categories"
+            shortcut="/"
+            chipLabelPrefix="Category"
+          />
+
+          <button
+            onClick={handleOpenAddModal}
+            className="m3-btn-base m3-btn-filled text-body-sm font-bold py-2.5 px-4 shadow-1 active:scale-95 shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Define New Category</span>
+            <span className="sm:hidden">New Category</span>
+          </button>
+        </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="relative max-w-md">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-subtle" />
-        <input
-          type="text"
-          placeholder="Search categories by name, code or description..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="m3-input pl-9 pr-4 text-xs"
-        />
-      </div>
+      {/* Empty State */}
+      {filteredCategories.length === 0 && (
+        <div className="m3-card p-10 text-center space-y-3">
+          <div className="w-12 h-12 mx-auto rounded-full flex items-center justify-center bg-surface-variant text-text-muted">
+            <FolderTree className="w-6 h-6" />
+          </div>
+          <h3 className="text-title font-bold text-text">No category matches found</h3>
+          <p className="text-body-sm text-text-muted max-w-md mx-auto">
+            {searchQuery
+              ? `No match. Try name, CNIC, phone or serial.`
+              : 'No category groups defined yet.'}
+          </p>
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="m3-btn-base m3-btn-tonal text-caption py-2 px-4 font-bold"
+            >
+              Clear Search Query
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Categories Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -210,21 +234,21 @@ export const CategoryManagementView: React.FC<CategoryManagementViewProps> = ({
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="px-2.5 py-1 bg-surface-2 text-primary font-mono-tabular rounded-lg text-[10px] font-bold border border-border">
+                  <span className="px-2.5 py-1 bg-surface-2 text-primary font-mono-tabular rounded-lg text-caption font-bold border border-border">
                     {cat.code || `CAT-${cat.id}`}
                   </span>
-                  <span className="px-2 py-0.5 bg-primary-container text-on-primary-container rounded text-[10px] font-semibold flex items-center gap-1 font-mono-tabular">
-                    <Package className="w-3 h-3 text-primary" />
+                  <span className="px-2.5 py-1 bg-primary-container text-on-primary-container rounded text-caption font-bold flex items-center gap-1 font-mono-tabular">
+                    <Package className="w-3.5 h-3.5 text-primary" />
                     {itemCount} Models
                   </span>
                 </div>
 
                 <div>
-                  <h3 className="text-base font-bold text-text font-heading">
+                  <h3 className="text-title font-bold text-text font-heading">
                     {cat.name}
                   </h3>
                   {cat.description && (
-                    <p className="text-xs text-text-muted mt-1 line-clamp-2 leading-relaxed">
+                    <p className="text-caption text-text-muted mt-1 line-clamp-2 leading-relaxed font-medium">
                       {cat.description}
                     </p>
                   )}
@@ -232,14 +256,14 @@ export const CategoryManagementView: React.FC<CategoryManagementViewProps> = ({
 
                 {cat.itemTypes && cat.itemTypes.length > 0 && (
                   <div className="space-y-1 pt-1">
-                    <span className="text-[10px] font-bold text-text-subtle uppercase tracking-wider block">
+                    <span className="text-caption font-bold text-text-muted uppercase tracking-wider block">
                       Sub-Types / Products:
                     </span>
                     <div className="flex flex-wrap gap-1">
                       {cat.itemTypes.map((type, idx) => (
                         <span
                           key={idx}
-                          className="px-2 py-0.5 bg-surface-2 text-text-muted rounded text-[11px] font-medium border border-border"
+                          className="px-2.5 py-1 bg-surface-2 text-text-muted rounded text-caption font-semibold border border-border"
                         >
                           {type}
                         </span>
@@ -256,7 +280,7 @@ export const CategoryManagementView: React.FC<CategoryManagementViewProps> = ({
 
                   return (
                     <div
-                      className={`p-3 rounded-xl border text-xs space-y-2 transition-all ${
+                      className={`p-3 rounded-xl border text-body-sm space-y-2 transition-all ${
                         isLowStock
                           ? 'bg-danger-container/50 border-danger/50 text-on-danger-container'
                           : 'bg-surface-2 border-border'
@@ -279,18 +303,18 @@ export const CategoryManagementView: React.FC<CategoryManagementViewProps> = ({
                           <button
                             type="button"
                             onClick={() => handleQuickUpdateThreshold(cat, -1)}
-                            className="w-5 h-5 rounded bg-surface-2 hover:bg-border text-text flex items-center justify-center font-bold text-xs active:scale-95 transition-all cursor-pointer"
+                            className="w-6 h-6 rounded bg-surface-2 hover:bg-border text-text flex items-center justify-center font-bold text-caption active:scale-95 transition-all cursor-pointer"
                             title="Decrease low stock threshold by 1"
                           >
                             -
                           </button>
-                          <span className="font-black font-mono-tabular text-xs text-text px-1">
+                          <span className="font-black font-mono-tabular text-caption text-text px-1">
                             {threshold} units
                           </span>
                           <button
                             type="button"
                             onClick={() => handleQuickUpdateThreshold(cat, 1)}
-                            className="w-5 h-5 rounded bg-surface-2 hover:bg-border text-text flex items-center justify-center font-bold text-xs active:scale-95 transition-all cursor-pointer"
+                            className="w-6 h-6 rounded bg-surface-2 hover:bg-border text-text flex items-center justify-center font-bold text-caption active:scale-95 transition-all cursor-pointer"
                             title="Increase low stock threshold by 1"
                           >
                             +
@@ -298,18 +322,18 @@ export const CategoryManagementView: React.FC<CategoryManagementViewProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-border">
-                        <span className="text-text-subtle">Available In Stock:</span>
+                      <div className="flex items-center justify-between text-caption pt-1.5 border-t border-border font-medium">
+                        <span className="text-text-muted">Available In Stock:</span>
                         <div className="flex items-center gap-1.5">
                           <span className="font-mono-tabular font-bold text-text">
                             {availableUnits} Units
                           </span>
                           {isLowStock ? (
-                            <span className="px-1.5 py-0.5 rounded bg-danger-container text-on-danger-container border border-border text-[10px] font-black uppercase tracking-wider animate-pulse">
+                            <span className="px-2 py-0.5 rounded bg-danger-container text-on-danger-container border border-border text-caption font-black uppercase tracking-wider animate-pulse">
                               ⚠️ Low Stock
                             </span>
                           ) : (
-                            <span className="px-1.5 py-0.5 rounded bg-success-container text-on-success-container border border-border text-[10px] font-bold uppercase">
+                            <span className="px-2 py-0.5 rounded bg-success-container text-on-success-container border border-border text-caption font-bold uppercase">
                               ✓ Normal
                             </span>
                           )}
@@ -322,14 +346,14 @@ export const CategoryManagementView: React.FC<CategoryManagementViewProps> = ({
 
               {/* Actions Footer */}
               <div className="pt-3 border-t border-border flex items-center justify-between">
-                <span className="text-[10px] text-text-subtle font-medium">
+                <span className="text-caption text-text-muted font-bold font-mono-tabular">
                   Group ID: #{cat.id}
                 </span>
 
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => handleOpenEditModal(cat)}
-                    className="m3-btn-base m3-btn-tonal text-xs py-1 px-3"
+                    className="m3-btn-base m3-btn-tonal text-body-sm font-bold py-1.5 px-3.5"
                   >
                     <Edit className="w-3.5 h-3.5 text-primary" />
                     <span>Edit</span>
@@ -338,7 +362,7 @@ export const CategoryManagementView: React.FC<CategoryManagementViewProps> = ({
                   <button
                     onClick={() => handleDelete(cat)}
                     title="Delete Category"
-                    className="p-1.5 text-text-subtle hover:text-danger rounded-lg transition-all cursor-pointer"
+                    className="p-1.5 text-text-muted hover:text-danger rounded-lg transition-all cursor-pointer"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

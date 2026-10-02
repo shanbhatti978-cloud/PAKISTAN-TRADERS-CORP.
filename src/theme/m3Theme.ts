@@ -1,3 +1,5 @@
+import { applyGlassThemeToDocument, migrateColorScheme } from './glassThemes';
+
 /**
  * Material 3 Expressive & Universal Theme Engine
  * Complete unified visual language driven by the user's selected primary theme color.
@@ -577,63 +579,12 @@ export function getActiveThemeTokens(color: string, mode: M3ThemeMode): M3Unifie
 /**
  * Applies all semantic variables and M3 tokens to document.documentElement (html element)
  */
-export function applyThemeToDocument(color: string, mode: M3ThemeMode) {
-  const tokens = getActiveThemeTokens(color, mode);
-  const root = document.documentElement;
-
-  // Set html class, data-theme, and color-scheme
-  root.classList.remove('light', 'dark');
-  root.classList.add(mode);
-  root.setAttribute('data-theme', mode);
-  root.style.colorScheme = mode;
-  if (document.body) {
-    document.body.classList.remove('light', 'dark');
-    document.body.classList.add(mode);
-  }
-
-  // Primary palette tokens
-  root.style.setProperty('--primary', tokens.primary);
-  root.style.setProperty('--primary-hover', tokens.primaryHover);
-  root.style.setProperty('--on-primary', tokens.primaryForeground);
-  root.style.setProperty('--primary-container', tokens.primaryContainer);
-  root.style.setProperty('--on-primary-container', tokens.onPrimaryContainer);
-  root.style.setProperty('--focus-ring', tokens.focusRing);
-
-  // M3 Aliases
-  root.style.setProperty('--theme-primary', tokens.primary);
-  root.style.setProperty('--theme-primary-hover', tokens.primaryHover);
-  root.style.setProperty('--theme-primary-active', tokens.primaryActive);
-  root.style.setProperty('--theme-primary-foreground', tokens.primaryForeground);
-  root.style.setProperty('--theme-primary-container', tokens.primaryContainer);
-  root.style.setProperty('--theme-on-primary-container', tokens.onPrimaryContainer);
-  root.style.setProperty('--theme-tonal-bg', tokens.tonalBg);
-  root.style.setProperty('--theme-tonal-border', tokens.tonalBorder);
-  root.style.setProperty('--theme-tonal-text', tokens.tonalText);
-  root.style.setProperty('--theme-hero-banner-bg', tokens.heroBannerBg);
-  root.style.setProperty('--theme-hero-banner-text', tokens.heroBannerText);
-  root.style.setProperty('--theme-hero-banner-muted', tokens.heroBannerMuted);
-  root.style.setProperty('--theme-hero-banner-accent', tokens.heroBannerAccent);
-  root.style.setProperty('--theme-badge-bg', tokens.badgeBg);
-  root.style.setProperty('--theme-badge-text', tokens.badgeText);
-  root.style.setProperty('--theme-appbar-bg', tokens.appBarBg);
-  root.style.setProperty('--theme-nav-indicator-bg', tokens.navIndicatorBg);
-  root.style.setProperty('--theme-nav-indicator-text', tokens.navIndicatorText);
-
-  // Surface and text variables
-  root.style.setProperty('--bg', tokens.surfaceBg);
-  root.style.setProperty('--surface', tokens.surfaceCard);
-  root.style.setProperty('--surface-2', tokens.surfaceCard);
-  root.style.setProperty('--surface-input', tokens.surfaceInput);
-  root.style.setProperty('--border', tokens.surfaceBorder);
-  root.style.setProperty('--text', tokens.textPrimary);
-  root.style.setProperty('--text-muted', tokens.textSecondary);
-  root.style.setProperty('--text-subtle', tokens.textMuted);
-
-  // Meta theme-color tag
-  const metaTheme = document.getElementById('meta-theme-color');
-  if (metaTheme) {
-    metaTheme.setAttribute('content', tokens.surfaceBg);
-  }
+export function applyThemeToDocument(
+  color: string,
+  mode: M3ThemeMode,
+  options?: { liteMode?: boolean; animatedBackground?: boolean }
+) {
+  applyGlassThemeToDocument(color, mode, options);
 }
 
 export const M3_DARK_SCHEMES: Record<string, M3UnifiedThemeTokens> = {
