@@ -163,7 +163,7 @@ function MainAppLayout() {
     showUserLoginModal;
 
   return (
-    <div className="min-h-screen flex font-sans transition-colors duration-200 bg-bg text-text selection:bg-primary selection:text-on-primary lavender-glass-bg">
+    <div className="min-h-screen flex font-sans transition-colors duration-200 bg-bg text-text selection:bg-primary selection:text-on-primary">
       
       {/* PIN Lock Protection Screen if Locked */}
       {settings.isLocked && (
@@ -415,10 +415,12 @@ function MainAppLayout() {
         <NewAgreementModal
           customers={customers}
           stock={stock}
+          categories={categories}
           settings={settings}
           preselectedCustomerId={actions.preselectedCustomerId}
           preselectedItemId={actions.preselectedItemId}
           onClose={() => actions.setShowNewAgrModal(false)}
+          onAddCustomer={addCustomer}
           onCreateAgreement={(agreementData) => {
             const newAgr = createAgreement(agreementData);
             actions.showToast(`Agreement #${newAgr.agreementNumber} created!`, 'success');
@@ -466,11 +468,11 @@ function MainAppLayout() {
           settings={settings}
           onClose={() => actions.setPaymentToReverse(null)}
           onConfirmReversal={(paymentId, reason) => {
-            try {
-              reversePayment(paymentId, reason);
+            const res = reversePayment(paymentId, reason);
+            if (res.success) {
               actions.showToast('Payment transaction reversed & ledger updated.', 'success');
-            } catch (err: any) {
-              actions.showToast(err?.message || 'Reversal failed.', 'error');
+            } else {
+              actions.showToast(res.message || 'Reversal failed.', 'error');
             }
           }}
         />

@@ -20,7 +20,6 @@ interface NewAgreementModalProps {
   settings: ShopSettings;
   onClose: () => void;
   preselectedItemId?: string;
-  preselectedCustomerId?: string;
   onCreateAgreement: (params: {
     customerId: string;
     itemId: string;
@@ -46,16 +45,13 @@ export const NewAgreementModal: React.FC<NewAgreementModalProps> = ({
   settings,
   onClose,
   preselectedItemId,
-  preselectedCustomerId,
   onCreateAgreement,
 }) => {
   const [step, setStep] = useState<1 | 2 | 3>(preselectedItemId ? 2 : 1);
 
   const availableStock = stock.filter((s) => s.status === 'available');
 
-  const [selectedCustId, setSelectedCustId] = useState<string>(
-    preselectedCustomerId || customers[0]?.id || ''
-  );
+  const [selectedCustId, setSelectedCustId] = useState<string>(customers[0]?.id || '');
   const [selectedItemId, setSelectedItemId] = useState<string>(
     preselectedItemId || availableStock[0]?.id || ''
   );

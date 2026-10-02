@@ -1,21 +1,28 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Bell,
-  Plus,
-  Search,
-  Calendar,
-  ArrowUpRight,
-  TrendingUp,
-  Package,
+  Home,
+  Boxes,
   FileSignature,
   Wallet,
-  Clock,
-  ChevronRight,
+  Building2,
+  KeyRound,
   Sparkles,
+  TrendingUp,
+  AlertTriangle,
+  Clock,
+  Send,
+  Users,
+  BookOpen,
+  Settings,
+  ChevronRight,
+  ShieldCheck,
+  CheckCircle2,
+  Search,
 } from 'lucide-react';
 import { Agreement, Customer, StockItem, ShopSettings, Payment } from '../types';
-import { NavTabId } from '../config/navigation';
+import { NavTabId, NAV_ITEMS } from '../config/navigation';
+import { formatDateDDMMYYYY } from '../utils/formatters';
 import { useAppActions } from '../context/AppActionsContext';
 
 interface HomeViewProps {
@@ -40,217 +47,302 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onNavigateTab,
 }) => {
   const { runAction } = useAppActions();
-  const [selectedBarIndex, setSelectedBarIndex] = useState<number>(3); // 15th
-  const [activeLegend, setActiveLegend] = useState<'all' | 'installment' | 'downpayment'>('all');
+  const todayStr = new Date().toISOString().split('T')[0];
 
+  // 1. KPI Calculations
   const activeAgreements = agreements.filter((a) => a.status === 'active');
+  const activeAgreementsCount = activeAgreements.length;
   const totalStockCount = stock.reduce((sum, item) => sum + (item.inStock || 0), 0);
 
-  // Today calculations
-  const todayStr = new Date().toISOString().split('T')[0];
   const todayPayments = payments.filter((p) => !p.isReversed && p.date === todayStr);
   const todayCollectedTotal = todayPayments.reduce((sum, p) => sum + p.amountPaid, 0);
 
-  // Bar chart sample data points matching screen A: 01, 05, 10, 15, 20
-  const barData = [
-    { label: '01', height: 48, color: '#F4A3A0', value: 24500 },
-    { label: '05', height: 72, color: '#BDB4F2', value: 36200 },
-    { label: '10', height: 58, color: '#F4A3A0', value: 29000 },
-    { label: '15', height: 92, color: '#BDB4F2', value: 45462, isSelected: true },
-    { label: '20', height: 68, color: '#F4A3A0', value: 34100 },
+  // Overdue and Due Today slots
+  let overdueCount = 0;
+  let dueTodayCount = 0;
+  const dueTodaySlots: { agreement: Agreement; customer?: Customer; slot: any }[] = [];
+
+  agreements.forEach((agr) => {
+    if (agr.status === 'completed' || agr.status === 'cancelled') return;
+    const cust = customers.find((c) => c.id === agr.customerId);
+
+    agr.schedule.forEach((slot) => {
+      if (slot.status === 'paid') return;
+      if (slot.dueDate === todayStr) {
+        dueTodayCount++;
+        dueTodaySlots.push({ agreement: agr, customer: cust, slot });
+      } else if (slot.dueDate < todayStr) {
+        overdueCount++;
+      }
+    });
+  });
+
+  const lowStockCount = stock.filter((s) => s.status === 'available' && s.inStock <= 2).length;
+
+  const mainModules = [
+    {
+      id: 'agreements' as NavTabId,
+      title: 'Dispatches & Sales',
+      subtitle: 'Customer Sales & Agreements',
+      badge: `${activeAgreementsCount} Active`,
+      badgeColor: 'bg-primary-container text-on-primary-container border-border',
+      icon: FileSignature,
+    },
+    {
+      id: 'recovery' as NavTabId,
+      title: 'Installment Recovery',
+      subtitle: 'Due Collections & Overdue',
+      badge: overdueCount > 0 ? `${overdueCount} Overdue` : 'Clear',
+      badgeColor: overdueCount > 0 ? 'bg-danger-container text-on-danger-container border-border' : 'bg-success-container text-on-success-container border-border',
+      icon: Wallet,
+    },
+    {
+      id: 'stock' as NavTabId,
+      title: 'Master Inventory',
+      subtitle: 'Warehouse & Stock Models',
+      badge: lowStockCount > 0 ? `${lowStockCount} Low Stock` : `${totalStockCount} Items`,
+      badgeColor: lowStockCount > 0 ? 'bg-warning-container text-on-warning-container border-border' : 'bg-info-container text-on-info-container border-border',
+      icon: Boxes,
+    },
+    {
+      id: 'customers' as NavTabId,
+      title: 'Customer Profiles',
+      subtitle: 'CNIC Records & Guarantors',
+      badge: `${customers.length} Profiles`,
+      badgeColor: 'bg-surface-2 text-text border-border',
+      icon: Users,
+    },
   ];
 
   return (
-    <div className="w-full max-w-md mx-auto space-y-5 pb-20 select-none">
+    <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 py-4 sm:py-6 space-y-6 select-none">
       
-      {/* 1. Top Row Profile Pill & Action Buttons */}
-      <div className="flex items-center justify-between gap-3 pt-2">
-        {/* Profile Pill */}
-        <div className="flex items-center gap-3 px-3 py-1.5 rounded-full glass-card border border-white/80 dark:border-white/10 shadow-xs">
-          <div className="w-9 h-9 rounded-full bg-[#BDB4F2] text-[#1A1A22] font-black text-xs flex items-center justify-center shadow-xs">
-            {settings.proprietorName?.[0] || 'B'}
-          </div>
-          <div className="pr-2 leading-tight">
-            <div className="font-heading font-extrabold text-xs text-[#1A1A22] dark:text-white">
-              {settings.proprietorName || 'Brooklyn Simmons'}
+      {/* 1. Header Banner */}
+      <motion.div
+        initial={{ opacity: 0, y: -15 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden p-6 sm:p-7 rounded-3xl border border-border shadow-2 bg-surface text-text backdrop-blur-xl"
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-primary-container text-on-primary-container border border-border">
+              <Building2 className="w-3.5 h-3.5" />
+              <span>{settings.shopName || 'Pakistan Traders Corporation'}</span>
             </div>
-            <div className="text-[10px] text-[#6B6B7B] font-mono">
-              {settings.shopName || 'brooklyn.simmons@pos.com'}
-            </div>
-          </div>
-        </div>
 
-        {/* Right Circle Buttons: Bell & Plus */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onNavigateTab('activity_ledger')}
-            title="Activity Notifications"
-            className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 text-[#1A1A22] dark:text-white shadow-xs border border-black/5 dark:border-white/10 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform cursor-pointer"
-          >
-            <Bell className="w-4 h-4 stroke-[2.2]" />
-          </button>
+            <h1 className="text-2xl sm:text-3xl font-black font-heading tracking-tight text-text">
+              Home Command Center
+            </h1>
 
-          <button
-            onClick={() => runAction('new_agreement')}
-            title="New Sale Agreement"
-            className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 text-[#1A1A22] dark:text-white shadow-xs border border-black/5 dark:border-white/10 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform cursor-pointer"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-          </button>
-        </div>
-      </div>
-
-      {/* 2. Big Light-Weight Heading (Two Lines) */}
-      <div className="space-y-0.5 pt-1 px-1">
-        <h1 className="text-2xl sm:text-3xl font-light tracking-tight text-[#1A1A22] dark:text-white leading-tight font-heading">
-          Track and Manage Sales <br />
-          <span className="font-normal text-[#5B4BC4] dark:text-[#BDB4F2]">with Point of Sales</span>
-        </h1>
-      </div>
-
-      {/* 3. Full-Width Pill Search Field */}
-      <div className="relative">
-        <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-[#6B6B7B]" />
-        <input
-          type="text"
-          placeholder="Search.."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery?.(e.target.value)}
-          className="w-full pl-11 pr-4 py-3 rounded-full glass-card border border-white/90 dark:border-white/10 text-xs font-medium text-[#1A1A22] dark:text-white placeholder:text-[#6B6B7B] shadow-xs outline-none focus:ring-2 focus:ring-[#BDB4F2]"
-        />
-      </div>
-
-      {/* 4. Large Glass Card: Earnings & Bar Chart */}
-      <div className="glass-card p-5 sm:p-6 space-y-4 relative">
-        {/* Card Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="text-[11px] font-semibold text-[#6B6B7B] uppercase tracking-wider">
-              Earnings
-            </div>
-            <h2 className="text-base sm:text-lg font-normal text-[#1A1A22] dark:text-white font-heading mt-0.5">
-              Tracking our sales
-            </h2>
+            <p className="text-xs font-semibold text-text-muted max-w-lg">
+              Offline Instalment & Master Inventory System • PIN Protected Operations
+            </p>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => onNavigateTab('recovery')}
-              title="Calendar dues"
-              className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 text-[#1A1A22] dark:text-white shadow-xs border border-black/5 dark:border-white/10 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform cursor-pointer"
-            >
-              <Calendar className="w-3.5 h-3.5 stroke-[2]" />
-            </button>
+          <div className="flex items-center gap-3">
+            <div className="p-3.5 rounded-2xl bg-surface-2 border border-border text-center min-w-[120px]">
+              <div className="text-[10px] font-bold text-text-subtle uppercase">Today's Recovered</div>
+              <div className="text-base font-extrabold font-mono-tabular text-success mt-0.5">
+                {settings.currencySymbol} {todayCollectedTotal.toLocaleString()}
+              </div>
+            </div>
+
             <button
               onClick={() => runAction('business_report')}
-              title="Full Audit Report"
-              className="w-8 h-8 rounded-full bg-white dark:bg-slate-800 text-[#1A1A22] dark:text-white shadow-xs border border-black/5 dark:border-white/10 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+              className="m3-btn-base m3-btn-filled text-xs py-3 px-4 shadow-2 active:scale-95 cursor-pointer"
             >
-              <ArrowUpRight className="w-3.5 h-3.5 stroke-[2.2]" />
+              <TrendingUp className="w-4 h-4" />
+              <span>Audit Report</span>
             </button>
           </div>
         </div>
+      </motion.div>
 
-        {/* Legend */}
-        <div className="flex items-center gap-4 text-[11px] text-[#6B6B7B]">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#F4A3A0]" />
-            <span>Down Payment</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#BDB4F2]" />
-            <span>Installments</span>
-          </div>
-        </div>
-
-        {/* Bar Chart Area with Selected Bar Tooltip */}
-        <div className="pt-8 pb-2 relative">
-          
-          {/* Floating White Tooltip above selected bar */}
-          <div className="absolute top-0 left-1/2 -translate-x-3 pointer-events-none z-10 animate-in fade-in zoom-in-95 duration-200">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl px-3 py-1.5 shadow-[0_6px_20px_rgba(0,0,0,0.08)] border border-black/5 dark:border-white/10 text-center leading-tight">
-              <div className="text-[10px] text-[#6B6B7B] font-medium">Total sales</div>
-              <div className="text-xs font-black font-mono-tabular text-[#1A1A22] dark:text-white mt-0.5">
-                $45,462
-              </div>
-              <div className="flex items-center justify-center gap-1 mt-0.5">
-                <span className="bg-[#BDF2C6] text-[#14532D] text-[9px] font-extrabold px-1 rounded-full font-mono">
-                  +2.5%
-                </span>
-                <span className="text-[8px] text-[#6B6B7B]">vs last month</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Chart Columns & Y-Axis */}
-          <div className="flex items-end justify-between gap-3 h-44 border-b border-black/5 dark:border-white/10 pb-1">
-            {/* Y-axis labels */}
-            <div className="flex flex-col justify-between h-full text-[9px] text-[#6B6B7B] font-mono-tabular pr-1 pb-1">
-              <span>$50k</span>
-              <span>$40k</span>
-              <span>$30k</span>
-              <span>$20k</span>
-              <span>$10k</span>
-            </div>
-
-            {/* 5 Vertical Bars with fully rounded tops */}
-            <div className="flex-1 flex items-end justify-around h-full px-2">
-              {barData.map((bar, idx) => {
-                const isSelected = selectedBarIndex === idx;
-
-                return (
-                  <div
-                    key={bar.label}
-                    onClick={() => setSelectedBarIndex(idx)}
-                    className="flex flex-col items-center gap-1.5 cursor-pointer group h-full justify-end"
-                  >
-                    <div
-                      style={{
-                        height: `${bar.height}%`,
-                        backgroundColor: bar.color,
-                      }}
-                      className={`w-7 sm:w-8 rounded-t-full transition-all duration-300 group-hover:opacity-90 ${
-                        isSelected ? 'ring-4 ring-[#BDB4F2]/30 shadow-md' : 'opacity-80'
-                      }`}
-                    />
-                    <span className="text-[10px] font-mono font-medium text-[#6B6B7B] group-hover:text-[#1A1A22]">
-                      {bar.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 5. Second Glass Card: Market items / Market demand */}
-      <div
-        onClick={() => onNavigateTab('stock')}
-        className="glass-card p-5 flex items-center justify-between cursor-pointer hover:border-white transition-all shadow-xs group"
-      >
-        <div className="space-y-1">
-          <div className="text-[11px] font-semibold text-[#6B6B7B] uppercase tracking-wider">
-            Market items
-          </div>
-          <h3 className="text-sm font-normal text-[#1A1A22] dark:text-white font-heading">
-            Market demand
-          </h3>
-          <div className="text-2xl sm:text-3xl font-normal font-mono-tabular text-[#1A1A22] dark:text-white pt-1">
-            {String(totalStockCount > 0 ? totalStockCount : 50).padStart(3, '0')} items
-          </div>
-        </div>
-
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onNavigateTab('stock');
-          }}
-          className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 text-[#1A1A22] dark:text-white shadow-xs border border-black/5 dark:border-white/10 flex items-center justify-center group-hover:translate-x-1 transition-transform cursor-pointer"
+      {/* 2. KPI Cards Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        
+        {/* KPI 1: Active Agreements */}
+        <div
+          onClick={() => onNavigateTab('agreements')}
+          className="p-4 rounded-2xl border border-border bg-surface text-text hover:border-primary transition-all cursor-pointer shadow-1 space-y-1.5"
         >
-          <ChevronRight className="w-5 h-5 stroke-[2.2]" />
-        </button>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-text-subtle uppercase">Active Sales</span>
+            <div className="p-2 rounded-xl bg-primary-container text-on-primary-container">
+              <FileSignature className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black font-mono-tabular text-text">
+            {activeAgreementsCount}
+          </div>
+          <div className="text-[10px] text-text-subtle">
+            Active customer contracts
+          </div>
+        </div>
+
+        {/* KPI 2: Overdue Installments */}
+        <div
+          onClick={() => onNavigateTab('recovery')}
+          className="p-4 rounded-2xl border border-border bg-surface text-text hover:border-danger transition-all cursor-pointer shadow-1 space-y-1.5"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-text-subtle uppercase">Overdue Dues</span>
+            <div className="p-2 rounded-xl bg-danger-container text-on-danger-container">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black font-mono-tabular text-danger">
+            {overdueCount}
+          </div>
+          <div className="text-[10px] text-danger font-semibold">
+            {overdueCount > 0 ? 'Requires immediate recovery' : 'Zero overdue dues'}
+          </div>
+        </div>
+
+        {/* KPI 3: Due Today */}
+        <div
+          onClick={() => onNavigateTab('recovery')}
+          className="p-4 rounded-2xl border border-border bg-surface text-text hover:border-warning transition-all cursor-pointer shadow-1 space-y-1.5"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-text-subtle uppercase">Due Today</span>
+            <div className="p-2 rounded-xl bg-warning-container text-on-warning-container">
+              <Clock className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black font-mono-tabular text-warning">
+            {dueTodayCount}
+          </div>
+          <div className="text-[10px] text-text-subtle">
+            Scheduled collections for today
+          </div>
+        </div>
+
+        {/* KPI 4: Low Stock Warnings */}
+        <div
+          onClick={() => onNavigateTab('stock')}
+          className="p-4 rounded-2xl border border-border bg-surface text-text hover:border-info transition-all cursor-pointer shadow-1 space-y-1.5"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-text-subtle uppercase">Low Stock</span>
+            <div className="p-2 rounded-xl bg-info-container text-on-info-container">
+              <Boxes className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black font-mono-tabular text-info">
+            {lowStockCount}
+          </div>
+          <div className="text-[10px] text-text-subtle">
+            {lowStockCount > 0 ? 'Models below safety threshold' : 'Stock levels adequate'}
+          </div>
+        </div>
+
       </div>
+
+      {/* 3. Primary Module Cards Grid */}
+      <div className="space-y-3">
+        <h3 className="text-xs font-heading font-extrabold uppercase tracking-wider text-text-subtle px-1">
+          Primary Operations
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {mainModules.map((mod) => {
+            const Icon = mod.icon;
+            return (
+              <motion.button
+                key={mod.id}
+                whileHover={{ scale: 1.01, y: -2 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={() => onNavigateTab(mod.id)}
+                className="group relative p-5 rounded-3xl border border-border bg-surface text-text hover:border-primary transition-all text-left shadow-1 cursor-pointer overflow-hidden"
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="p-3.5 rounded-2xl bg-primary-container text-on-primary-container shrink-0">
+                      <Icon className="w-6 h-6 stroke-[2.3]" />
+                    </div>
+
+                    <div>
+                      <h4 className="text-base font-extrabold font-heading text-text group-hover:text-primary transition-colors">
+                        {mod.title}
+                      </h4>
+                      <p className="text-xs text-text-subtle mt-0.5">
+                        {mod.subtitle}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className={`px-3 py-1 rounded-full text-xs font-bold font-mono-tabular border shrink-0 ${mod.badgeColor}`}>
+                    {mod.badge}
+                  </div>
+                </div>
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 4. Due Today Recovery List */}
+      {dueTodaySlots.length > 0 && (
+        <div className="m3-card p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div>
+              <h3 className="text-sm font-extrabold font-heading text-text flex items-center gap-2">
+                <Clock className="w-4 h-4 text-warning" />
+                <span>Collections Scheduled For Today ({dueTodaySlots.length})</span>
+              </h3>
+              <p className="text-xs text-text-subtle">
+                Customer installments due on {formatDateDDMMYYYY(todayStr)}
+              </p>
+            </div>
+
+            <button
+              onClick={() => onNavigateTab('recovery')}
+              className="m3-btn-base m3-btn-tonal text-xs py-1.5 px-3"
+            >
+              <span>View All Recovery</span>
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {dueTodaySlots.slice(0, 5).map(({ agreement, customer, slot }, idx) => {
+              const dueAmt = slot.amount - slot.paidAmount;
+
+              return (
+                <div
+                  key={`${agreement.id}-${slot.installmentNumber}-${idx}`}
+                  className="p-3.5 rounded-2xl border border-border bg-surface-2/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                >
+                  <div className="space-y-0.5">
+                    <div className="font-bold text-text">
+                      {customer?.fullName || 'Customer'} ({customer?.phone || 'No Phone'})
+                    </div>
+                    <div className="text-[11px] text-text-subtle font-mono-tabular">
+                      {agreement.itemName} | AGR: {agreement.agreementNumber} | Ins #{slot.installmentNumber}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between sm:justify-end gap-3">
+                    <div className="text-right">
+                      <div className="text-[10px] text-text-subtle uppercase">Amount Due</div>
+                      <div className="font-extrabold font-mono-tabular text-primary">
+                        {settings.currencySymbol} {dueAmt.toLocaleString()}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => runAction('collect_payment', { agreementId: agreement.id, installmentNum: slot.installmentNumber })}
+                      className="m3-btn-base m3-btn-filled text-xs py-1.5 px-3"
+                    >
+                      Collect
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
     </div>
   );

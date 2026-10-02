@@ -235,53 +235,6 @@
   transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease, fill 200ms ease, stroke 200ms ease !important;
 }
 
-/* Lavender Glass Soft Pastel Bento UI Utilities */
-.lavender-glass-bg {
-  background: radial-gradient(circle at 10% 20%, rgba(189, 180, 242, 0.22) 0%, transparent 40%),
-              radial-gradient(circle at 90% 80%, rgba(244, 163, 160, 0.15) 0%, transparent 45%),
-              linear-gradient(135deg, #F5F2FC 0%, #FAF8F5 50%, #EEEAF7 100%);
-}
-
-.dark .lavender-glass-bg {
-  background: radial-gradient(circle at 10% 20%, rgba(91, 75, 196, 0.22) 0%, transparent 40%),
-              radial-gradient(circle at 90% 80%, rgba(244, 163, 160, 0.1) 0%, transparent 45%),
-              linear-gradient(135deg, #090812 0%, #0D0C1A 50%, #110F21 100%);
-}
-
-.glass-card {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 0 10px 32px rgba(91, 75, 196, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02);
-  border-radius: 28px;
-}
-
-.dark .glass-card {
-  background: rgba(18, 16, 33, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4);
-  border-radius: 28px;
-}
-
-.glass-pill-dock {
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 12px 40px rgba(91, 75, 196, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.dark .glass-pill-dock {
-  background: rgba(22, 20, 40, 0.82);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
-}
-
 /* Material 3 Expressive & Universal Components */
 
 /* 1. Buttons */
