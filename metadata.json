@@ -1,0 +1,6 @@
+{
+  "name": "Pakistan Trader Corporation - Instalment & Inventory System",
+  "description": "Complete offline instalment and inventory management system for Pakistan Trader Corporation. Track home appliances, mobiles, bikes, stock intake, counter locations, customer ledger, and receipts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
