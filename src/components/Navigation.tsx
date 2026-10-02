@@ -122,9 +122,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   ];
 
   return (
-    <nav className={`backdrop-blur-md border-b px-3 sm:px-4 py-2 overflow-x-auto no-scrollbar sticky top-[57px] sm:top-[61px] z-20 transition-colors duration-200 ${
-      isLight ? 'bg-slate-50/95 border-slate-200' : 'bg-slate-900/95 border-slate-800/80'
-    }`}>
+    <nav className="backdrop-blur-md border-b px-3 sm:px-4 py-2 overflow-x-auto no-scrollbar sticky top-[57px] sm:top-[61px] z-20 transition-colors duration-200 bg-surface/95 border-border text-text">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 min-w-max">
         
         {/* Navigation Items (Material 3 Expressive Pill Chips) */}

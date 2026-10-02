@@ -78,10 +78,10 @@ export const ReversePaymentModal: React.FC<ReversePaymentModalProps> = ({
           <div className="font-mono-tabular" style={{ color: 'var(--theme-text-primary)' }}>
             Amount: {settings.currencySymbol} {payment.amountPaid.toLocaleString()}
           </div>
-          <div className="text-[10px] text-slate-400">Date: {payment.date} | Method: {payment.paymentMethod}</div>
+          <div className="text-[10px] text-text-subtle">Date: {payment.date} | Method: {payment.paymentMethod}</div>
         </div>
 
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-text-muted">
           Reversing this transaction will restore the unpaid balance on the customer schedule and record a compensating cashbook outflow entry. Financial records are never hard-deleted.
         </p>
 

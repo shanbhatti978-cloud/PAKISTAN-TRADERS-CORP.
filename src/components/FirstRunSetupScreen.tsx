@@ -2,12 +2,9 @@ import React, { useState } from 'react';
 import {
   ShieldCheck,
   UserCheck,
-  KeyRound,
+  Building2,
   Eye,
   EyeOff,
-  Building2,
-  Lock,
-  Sparkles,
   CheckCircle2,
   AlertCircle,
   ArrowRight,
@@ -26,7 +23,6 @@ interface FirstRunSetupScreenProps {
 
 export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
   onSetupRealAdmin,
-  isLight = false,
 }) => {
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
@@ -87,28 +83,24 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
   };
 
   return (
-    <div className={`min-h-screen flex items-center justify-center p-4 sm:p-6 font-sans transition-colors ${
-      isLight ? 'bg-slate-100 text-slate-900' : 'bg-slate-950 text-white'
-    }`}>
-      <div className={`w-full max-w-lg rounded-3xl border shadow-2xl p-6 sm:p-8 space-y-6 relative overflow-hidden backdrop-blur-xl ${
-        isLight ? 'bg-white/95 border-slate-200' : 'bg-slate-900/95 border-slate-800'
-      }`}>
+    <div className="min-h-screen flex items-center justify-center p-4 sm:p-6 font-sans transition-colors bg-bg text-text">
+      <div className="w-full max-w-lg rounded-3xl border border-border shadow-3 p-6 sm:p-8 space-y-6 relative overflow-hidden backdrop-blur-xl bg-surface">
         
         {/* Ambient Top Glow */}
-        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-24 bg-gradient-to-b from-blue-500/20 to-transparent blur-2xl pointer-events-none" />
+        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-24 bg-gradient-to-b from-primary/20 to-transparent blur-2xl pointer-events-none" />
 
         {/* Header */}
         <div className="text-center space-y-2 relative z-10">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-            <ShieldCheck className="w-4 h-4 text-blue-500" />
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider bg-primary-container text-on-primary-container border border-border">
+            <ShieldCheck className="w-4 h-4 text-primary" />
             <span>First-Run Owner Setup</span>
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight font-heading">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight font-heading text-text">
             Create Your Owner Admin Account
           </h1>
 
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+          <p className="text-xs font-semibold text-text-muted max-w-md mx-auto">
             Set up your permanent Master Admin credentials. Creating your account permanently deletes all default demo credentials from the system.
           </p>
         </div>
@@ -118,8 +110,8 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
           
           {/* Shop Name */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5 text-blue-500" />
+            <label className="text-xs font-bold text-text-muted flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-primary" />
               <span>Shop / Enterprise Name (Optional)</span>
             </label>
             <input
@@ -134,7 +126,7 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
           {/* Full Name & Username */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-bold text-text-muted">
                 Full Name *
               </label>
               <input
@@ -148,7 +140,7 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-bold text-text-muted">
                 Admin Username *
               </label>
               <input
@@ -165,7 +157,7 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
           {/* Password & Confirm Password */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-bold text-text-muted">
                 Admin Password *
               </label>
               <div className="relative">
@@ -180,7 +172,7 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-subtle hover:text-text"
                 >
                   {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
@@ -188,7 +180,7 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-bold text-text-muted">
                 Confirm Password *
               </label>
               <input
@@ -203,22 +195,22 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
           </div>
 
           {/* Password Strength Checklist */}
-          <div className="p-3 rounded-2xl border text-xs space-y-1.5 bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          <div className="p-3 rounded-2xl border text-xs space-y-1.5 bg-surface-2 border-border">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-text-subtle">
               Security Requirements
             </div>
             <div className="grid grid-cols-2 gap-2 text-[11px] font-semibold">
-              <div className={`flex items-center gap-1.5 ${hasMinLen ? 'text-emerald-500 font-bold' : 'text-slate-400'}`}>
+              <div className={`flex items-center gap-1.5 ${hasMinLen ? 'text-success font-bold' : 'text-text-subtle'}`}>
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>At least 8 characters</span>
               </div>
 
-              <div className={`flex items-center gap-1.5 ${hasDigit ? 'text-emerald-500 font-bold' : 'text-slate-400'}`}>
+              <div className={`flex items-center gap-1.5 ${hasDigit ? 'text-success font-bold' : 'text-text-subtle'}`}>
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>At least 1 digit (0-9)</span>
               </div>
 
-              <div className={`col-span-2 flex items-center gap-1.5 ${passwordsMatch ? 'text-emerald-500 font-bold' : 'text-slate-400'}`}>
+              <div className={`col-span-2 flex items-center gap-1.5 ${passwordsMatch ? 'text-success font-bold' : 'text-text-subtle'}`}>
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>Passwords match</span>
               </div>
@@ -226,15 +218,15 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
           </div>
 
           {/* Security Notice Banner */}
-          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-start gap-2.5">
-            <ShieldAlert className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+          <div className="p-3.5 rounded-2xl bg-warning-container text-on-warning-container border border-border text-xs font-semibold flex items-start gap-2.5">
+            <ShieldAlert className="w-4 h-4 text-warning shrink-0 mt-0.5" />
             <p className="leading-snug">
-              Creating your Master Admin account will permanently wipe all default demo credentials (<code className="font-mono bg-amber-500/20 px-1 py-0.5 rounded">admin123</code>, <code className="font-mono bg-amber-500/20 px-1 py-0.5 rounded">super123</code>, <code className="font-mono bg-amber-500/20 px-1 py-0.5 rounded">view123</code>). Demo logins can never be used again.
+              Creating your Master Admin account will permanently wipe all default demo credentials (<code className="font-mono bg-surface/50 px-1 py-0.5 rounded">admin123</code>, <code className="font-mono bg-surface/50 px-1 py-0.5 rounded">super123</code>, <code className="font-mono bg-surface/50 px-1 py-0.5 rounded">view123</code>). Demo logins can never be used again.
             </p>
           </div>
 
           {errorMsg && (
-            <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-400 text-xs font-bold flex items-center gap-2 animate-in shake">
+            <div className="p-3 rounded-2xl bg-danger-container text-on-danger-container border border-border text-xs font-bold flex items-center gap-2 animate-in shake">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
@@ -243,11 +235,11 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={!isPasswordValid || !fullName.trim() || !username.trim()}
-            className="w-full m3-btn-base m3-btn-filled text-xs py-3.5 rounded-2xl shadow-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!isPasswordValid || !fullName.trim() || !username.trim() || isSubmitting}
+            className="w-full m3-btn-base m3-btn-filled text-xs py-3.5 rounded-2xl shadow-2 font-bold flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <UserCheck className="w-4 h-4" />
-            <span>Create Account & Wipe Demo Credentials</span>
+            <span>{isSubmitting ? 'Initializing Master Admin...' : 'Create Account & Wipe Demo Credentials'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
 

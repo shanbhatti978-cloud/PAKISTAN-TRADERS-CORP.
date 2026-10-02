@@ -2,20 +2,45 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Pakistan Trader Corporation – Instalment & Inventory Management System</title>
     <meta name="description" content="Pakistan Trader Corporation - Complete offline instalment and inventory management system for home appliances, smartphones, bikes, and electronics." />
     <meta property="og:title" content="Pakistan Trader Corporation – Instalment & Inventory Management System" />
     <meta property="og:description" content="Pakistan Trader Corporation - Complete offline instalment and inventory management system for home appliances, smartphones, bikes, and electronics." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#030712" id="meta-theme-color" />
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('qistflow_settings_v2');
+          var mode = 'dark';
+          if (saved) {
+            var parsed = JSON.parse(saved);
+            if (parsed && parsed.themeMode) {
+              mode = parsed.themeMode;
+            }
+          } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+            mode = 'light';
+          }
+          var docEl = document.documentElement;
+          docEl.classList.remove('light', 'dark');
+          docEl.classList.add(mode);
+          docEl.setAttribute('data-theme', mode);
+          docEl.style.colorScheme = mode;
+          var metaColor = document.getElementById('meta-theme-color');
+          if (metaColor) {
+            metaColor.setAttribute('content', mode === 'light' ? '#f8fafc' : '#030712');
+          }
+        } catch (e) {}
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   </head>
-  <body class="bg-slate-950 text-slate-100 font-sans antialiased selection:bg-emerald-500 selection:text-white">
+  <body class="bg-bg text-text font-sans antialiased selection:bg-primary selection:text-on-primary">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

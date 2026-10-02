@@ -1,26 +1,17 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  FileText,
   ShieldCheck,
-  ShieldAlert,
   Search,
-  Filter,
   Download,
-  Calendar,
-  User,
   Activity,
   ChevronDown,
   ChevronUp,
   CheckCircle2,
   AlertTriangle,
   Lock,
-  Layers,
-  Sparkles,
-  ArrowRight,
-  Zap,
 } from 'lucide-react';
-import { ActivityLedgerEntry, UserRole, LedgerActionType } from '../types';
+import { ActivityLedgerEntry, LedgerActionType } from '../types';
 import { ActivityLogger } from '../utils/activityLogger';
 import { PermissionManager } from '../utils/permissionManager';
 
@@ -31,7 +22,6 @@ interface ActivityLedgerViewProps {
 
 export const ActivityLedgerView: React.FC<ActivityLedgerViewProps> = ({
   entries,
-  isLight = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('ALL');
@@ -125,7 +115,7 @@ export const ActivityLedgerView: React.FC<ActivityLedgerViewProps> = ({
     return matchesSearch && matchesRole && matchesAction && matchesModule;
   });
 
-  // Action badge color styling: Green = ADD, Blue = EDIT, Gray = VIEW, Red = DENIED, Purple = LOGIN/EXPORT
+  // Action badge color styling using token containers for AA contrast
   const getActionBadgeStyle = (action: LedgerActionType) => {
     switch (action) {
       case 'ADD_ITEM':
@@ -134,8 +124,8 @@ export const ActivityLedgerView: React.FC<ActivityLedgerViewProps> = ({
       case 'ADD_ENTRY':
         return {
           label: action.replace('_', ' '),
-          bg: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30',
-          dot: 'bg-emerald-500',
+          bg: 'bg-success-container text-on-success-container border-border',
+          dot: 'bg-success',
         };
 
       case 'EDIT_ITEM':
@@ -143,22 +133,22 @@ export const ActivityLedgerView: React.FC<ActivityLedgerViewProps> = ({
       case 'EDIT_RECOVERY_AMOUNT':
         return {
           label: action.replace('_', ' '),
-          bg: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30',
-          dot: 'bg-blue-500',
+          bg: 'bg-info-container text-on-info-container border-border',
+          dot: 'bg-info',
         };
 
       case 'VIEW_REPORT':
         return {
           label: 'VIEW REPORT',
-          bg: 'bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-500/30',
-          dot: 'bg-slate-500',
+          bg: 'bg-surface-2 text-text-muted border-border',
+          dot: 'bg-text-subtle',
         };
 
       case 'DENIED':
         return {
           label: 'PERMISSION DENIED',
-          bg: 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30',
-          dot: 'bg-red-500',
+          bg: 'bg-danger-container text-on-danger-container border-border',
+          dot: 'bg-danger',
         };
 
       case 'LOGIN':
@@ -166,15 +156,15 @@ export const ActivityLedgerView: React.FC<ActivityLedgerViewProps> = ({
       case 'EXPORT':
         return {
           label: action,
-          bg: 'bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/30',
-          dot: 'bg-purple-500',
+          bg: 'bg-primary-container text-on-primary-container border-border',
+          dot: 'bg-primary',
         };
 
       default:
         return {
           label: action.replace('_', ' '),
-          bg: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30',
-          dot: 'bg-amber-500',
+          bg: 'bg-warning-container text-on-warning-container border-border',
+          dot: 'bg-warning',
         };
     }
   };
@@ -196,18 +186,16 @@ export const ActivityLedgerView: React.FC<ActivityLedgerViewProps> = ({
     <div className="space-y-6 max-w-7xl mx-auto">
       
       {/* Header Banner */}
-      <div className={`p-6 rounded-3xl border shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
-        isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-800 text-white'
-      }`}>
+      <div className="p-6 rounded-3xl border border-border shadow-2 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors bg-surface text-text">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-            <Lock className="w-3.5 h-3.5 text-blue-500" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-primary-container text-on-primary-container border border-border">
+            <Lock className="w-3.5 h-3.5 text-primary" />
             <span>Cryptographic Hash Chain Ledger</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight font-heading">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight font-heading text-text">
             Enterprise Activity Ledger
           </h1>
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 max-w-xl">
+          <p className="text-xs font-semibold text-text-muted max-w-xl">
             Append-only tamper-evident audit trail recording every user action, state modification, before/after values, and denied attempts.
           </p>
         </div>
@@ -217,10 +205,10 @@ export const ActivityLedgerView: React.FC<ActivityLedgerViewProps> = ({
           <button
             onClick={handleRunIntegrityCheck}
             disabled={isVerifying}
-            className="m3-btn-base m3-btn-filled text-xs py-2.5 px-4 shadow-md active:scale-95 transition-transform flex items-center gap-2 cursor-pointer"
+            className="m3-btn-base m3-btn-filled text-xs py-2.5 px-4 shadow-1 active:scale-95 transition-transform flex items-center gap-2 cursor-pointer"
           >
             {isVerifying ? (
-              <Activity className="w-4 h-4 animate-spin text-white" />
+              <Activity className="w-4 h-4 animate-spin text-on-primary" />
             ) : (
               <ShieldCheck className="w-4 h-4" />
             )}
@@ -242,17 +230,17 @@ export const ActivityLedgerView: React.FC<ActivityLedgerViewProps> = ({
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className={`p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-md ${
+          className={`p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-1 ${
             integrityResult.isValid
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-300'
-              : 'bg-red-500/10 border-red-500/30 text-red-800 dark:text-red-300 animate-in shake'
+              ? 'bg-success-container text-on-success-container border-border'
+              : 'bg-danger-container text-on-danger-container border-border animate-in shake'
           }`}
         >
           <div className="flex items-center gap-3">
             {integrityResult.isValid ? (
-              <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0" />
+              <CheckCircle2 className="w-6 h-6 text-success shrink-0" />
             ) : (
-              <AlertTriangle className="w-6 h-6 text-red-500 shrink-0" />
+              <AlertTriangle className="w-6 h-6 text-danger shrink-0" />
             )}
             <div>
               <div className="font-extrabold text-sm">
@@ -268,21 +256,19 @@ export const ActivityLedgerView: React.FC<ActivityLedgerViewProps> = ({
             </div>
           </div>
 
-          <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-lg bg-black/10">
+          <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-lg bg-surface/50">
             {integrityResult.checkedCount} Blocks Checked
           </span>
         </motion.div>
       )}
 
       {/* Filter Bar */}
-      <div className={`p-4 rounded-2xl border space-y-3 ${
-        isLight ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
-      }`}>
+      <div className="m3-card p-4 space-y-3">
         <div className="flex flex-col sm:flex-row items-center gap-3">
           
           {/* Search */}
           <div className="relative flex-1 w-full">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-subtle pointer-events-none" />
             <input
               type="text"
               placeholder="Search user, description, module, hash..."
@@ -337,13 +323,13 @@ export const ActivityLedgerView: React.FC<ActivityLedgerViewProps> = ({
 
       {/* Activity Entries List */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400 px-1">
+        <div className="flex items-center justify-between text-xs font-bold text-text-muted px-1">
           <span>Displaying {filteredEntries.length} of {entries.length} Ledger Entries</span>
           <span className="font-mono text-[11px]">Append-Only Log</span>
         </div>
 
         {filteredEntries.length === 0 ? (
-          <div className="p-12 text-center text-xs font-bold text-slate-500 rounded-3xl border border-dashed border-slate-300 dark:border-slate-800">
+          <div className="p-12 text-center text-xs font-bold text-text-subtle rounded-3xl border border-dashed border-border bg-surface">
             No activity ledger entries match your current search and filters.
           </div>
         ) : (
@@ -355,9 +341,7 @@ export const ActivityLedgerView: React.FC<ActivityLedgerViewProps> = ({
             return (
               <div
                 key={entry.id}
-                className={`rounded-2xl border transition-all overflow-hidden ${
-                  isLight ? 'bg-white border-slate-200 hover:border-slate-300' : 'bg-slate-900 border-slate-800 hover:border-slate-700'
-                }`}
+                className="m3-card overflow-hidden transition-all"
               >
                 {/* Entry Header */}
                 <div
@@ -377,16 +361,16 @@ export const ActivityLedgerView: React.FC<ActivityLedgerViewProps> = ({
                           {entry.role}
                         </span>
 
-                        <span className="text-xs font-extrabold text-slate-900 dark:text-white">
+                        <span className="text-xs font-extrabold text-text">
                           {entry.username}
                         </span>
 
-                        <span className="text-[11px] text-slate-400 font-mono">
-                          in <strong className="text-slate-700 dark:text-slate-300">{entry.module}</strong>
+                        <span className="text-[11px] text-text-subtle font-mono">
+                          in <strong className="text-text">{entry.module}</strong>
                         </span>
                       </div>
 
-                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      <p className="text-xs font-semibold text-text-muted">
                         {entry.description}
                       </p>
                     </div>
@@ -394,15 +378,15 @@ export const ActivityLedgerView: React.FC<ActivityLedgerViewProps> = ({
 
                   <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                     <div className="text-right">
-                      <div className="text-[11px] font-mono font-bold text-slate-500">
+                      <div className="text-[11px] font-mono font-bold text-text-muted">
                         {new Date(entry.timestamp).toLocaleTimeString()}
                       </div>
-                      <div className="text-[10px] font-mono text-slate-400">
+                      <div className="text-[10px] font-mono text-text-subtle">
                         {new Date(entry.timestamp).toLocaleDateString()}
                       </div>
                     </div>
 
-                    <div className="p-1.5 rounded-lg border text-slate-400" style={{ borderColor: 'var(--theme-surface-border)' }}>
+                    <div className="p-1.5 rounded-lg border border-border bg-surface-2 text-text-muted">
                       {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </div>
                   </div>
@@ -415,17 +399,16 @@ export const ActivityLedgerView: React.FC<ActivityLedgerViewProps> = ({
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      className="border-t p-4 bg-slate-50/50 dark:bg-slate-950/50 space-y-3 text-xs"
-                      style={{ borderColor: 'var(--theme-surface-border)' }}
+                      className="border-t border-border p-4 bg-surface-2 space-y-3 text-xs"
                     >
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {/* Old Value */}
                         {entry.oldValue && (
-                          <div className="p-3 rounded-xl border bg-rose-500/5 border-rose-500/20 space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-500">
+                          <div className="p-3 rounded-xl border bg-danger-container/40 border-border text-on-danger-container space-y-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-danger">
                               Before (Old Value)
                             </span>
-                            <pre className="font-mono text-[11px] text-slate-700 dark:text-slate-300 whitespace-pre-wrap overflow-x-auto">
+                            <pre className="font-mono text-[11px] text-text whitespace-pre-wrap overflow-x-auto">
                               {entry.oldValue}
                             </pre>
                           </div>
@@ -433,11 +416,11 @@ export const ActivityLedgerView: React.FC<ActivityLedgerViewProps> = ({
 
                         {/* New Value */}
                         {entry.newValue && (
-                          <div className="p-3 rounded-xl border bg-emerald-500/5 border-emerald-500/20 space-y-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">
+                          <div className="p-3 rounded-xl border bg-success-container/40 border-border text-on-success-container space-y-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-success">
                               After (New Value)
                             </span>
-                            <pre className="font-mono text-[11px] text-slate-700 dark:text-slate-300 whitespace-pre-wrap overflow-x-auto">
+                            <pre className="font-mono text-[11px] text-text whitespace-pre-wrap overflow-x-auto">
                               {entry.newValue}
                             </pre>
                           </div>
@@ -445,18 +428,18 @@ export const ActivityLedgerView: React.FC<ActivityLedgerViewProps> = ({
                       </div>
 
                       {/* Cryptographic Hashes */}
-                      <div className="p-3 rounded-xl border bg-slate-900 text-slate-300 space-y-1 font-mono text-[10px]">
+                      <div className="p-3 rounded-xl border border-border bg-surface text-text space-y-1 font-mono text-[10px]">
                         <div className="flex justify-between">
-                          <span className="text-slate-400 font-bold">Block ID:</span>
-                          <span className="text-blue-400">{entry.id}</span>
+                          <span className="text-text-subtle font-bold">Block ID:</span>
+                          <span className="text-primary">{entry.id}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-slate-400 font-bold">Prev Hash:</span>
-                          <span className="text-slate-400 truncate max-w-xs">{entry.prevHash}</span>
+                          <span className="text-text-subtle font-bold">Prev Hash:</span>
+                          <span className="text-text-subtle truncate max-w-xs">{entry.prevHash}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-slate-400 font-bold">Block Hash:</span>
-                          <span className="text-emerald-400 truncate max-w-xs">{entry.hash}</span>
+                          <span className="text-text-subtle font-bold">Block Hash:</span>
+                          <span className="text-success truncate max-w-xs">{entry.hash}</span>
                         </div>
                       </div>
                     </motion.div>

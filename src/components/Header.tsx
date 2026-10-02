@@ -204,7 +204,7 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="font-bold text-xs uppercase hidden sm:inline text-slate-900 dark:text-white">
+                  <span className="font-bold text-xs uppercase hidden sm:inline text-text">
                     {currentUser.username}
                   </span>
                 </div>

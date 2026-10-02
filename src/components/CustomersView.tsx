@@ -32,27 +32,29 @@ import { formatDateDDMMYYYY } from '../utils/formatters';
 interface CustomersViewProps {
   customers: Customer[];
   agreements: Agreement[];
-  payments: Payment[];
-  settings: ShopSettings;
+  payments?: Payment[];
+  settings?: ShopSettings;
   searchQuery: string;
   setSearchQuery?: (query: string) => void;
   onAddCustomer: (customerData: Omit<Customer, 'id' | 'customerCode' | 'createdAt'>) => void;
   onUpdateCustomer: (id: string, updates: Partial<Customer>) => void;
   onDeleteCustomer: (id: string) => void;
-  onOpenNewAgreement: () => void;
+  onOpenNewAgreement?: () => void;
+  onOpenNewAgreementForCustomer?: (customer: Customer) => void;
 }
 
 export const CustomersView: React.FC<CustomersViewProps> = ({
   customers,
   agreements,
-  payments,
-  settings,
+  payments = [],
+  settings = { currencySymbol: 'Rs.', shopName: 'Pakistan Traders Corp', proprietorName: '', phone: '', address: '', city: 'Lahore', regNumber: '', pinCode: '1234', isLocked: false },
   searchQuery,
   setSearchQuery,
   onAddCustomer,
   onUpdateCustomer,
   onDeleteCustomer,
   onOpenNewAgreement,
+  onOpenNewAgreementForCustomer,
 }) => {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [ratingFilter, setRatingFilter] = useState<'all' | CustomerRating>('all');
@@ -269,20 +271,28 @@ export const CustomersView: React.FC<CustomersViewProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-2 border-t" style={{ borderColor: 'var(--theme-surface-border)' }}>
+              <div className="flex items-center gap-2 pt-2 border-t border-border">
+                <button
+                  onClick={() => onOpenNewAgreementForCustomer?.(customer)}
+                  className="m3-btn-base m3-btn-tonal text-xs py-1.5 px-2 text-[11px]"
+                  title="New Sale Agreement for this customer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>New Sale</span>
+                </button>
                 <button
                   onClick={() => handleDownloadPdf(customer)}
-                  className="m3-btn-base m3-btn-outlined text-xs py-1.5 flex-1"
+                  className="m3-btn-base m3-btn-outlined text-xs py-1.5 px-2 text-[11px]"
                   title="Export Payment Ledger PDF"
                 >
                   <FileDown className="w-3.5 h-3.5" />
-                  <span>Ledger PDF</span>
+                  <span>Ledger</span>
                 </button>
                 <button
                   onClick={() => setSelectedCustomer(customer)}
-                  className="m3-btn-base m3-btn-filled text-xs py-1.5 flex-1"
+                  className="m3-btn-base m3-btn-filled text-xs py-1.5 px-2 text-[11px]"
                 >
-                  <span>Full Profile</span>
+                  <span>Profile</span>
                 </button>
               </div>
             </div>

@@ -167,7 +167,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               {selectedAgreement && selectedCustomer && (
                 <div className="p-3 rounded-2xl border space-y-1" style={{ backgroundColor: 'var(--theme-tonal-bg)', borderColor: 'var(--theme-tonal-border)' }}>
                   <div className="font-bold text-sm" style={{ color: 'var(--theme-primary)' }}>{selectedCustomer.fullName}</div>
-                  <div className="text-slate-400 flex justify-between font-mono-tabular">
+                  <div className="text-text-muted flex justify-between font-mono-tabular">
                     <span>{selectedAgreement.itemName}</span>
                     <span className="font-bold" style={{ color: 'var(--theme-text-primary)' }}>
                       Bal: {settings.currencySymbol} {selectedAgreement.remainingBalance.toLocaleString()}
@@ -280,7 +280,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               <h2 className="text-2xl font-extrabold font-heading mt-1" style={{ color: 'var(--theme-text-primary)' }}>
                 Receipt #{completedPayment.receiptNumber}
               </h2>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-text-muted mt-1">
                 Collected {settings.currencySymbol} {completedPayment.amountPaid.toLocaleString()} for {completedPayment.customerName}.
               </p>
             </div>

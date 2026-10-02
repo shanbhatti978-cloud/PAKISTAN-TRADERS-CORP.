@@ -1,34 +1,38 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Home, Grid } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useQistStore } from './data/store';
 import { getLowStockCategories } from './utils/stockThresholds';
 import { Header } from './components/Header';
-import { Navigation, TabType } from './components/Navigation';
-import { NavDrawer } from './components/NavDrawer';
-import { M3BottomNavBar } from './components/M3BottomNavBar';
-import { AppCenterView } from './components/AppCenterView';
-import { ActivityLedgerView } from './components/ActivityLedgerView';
+import { NavigationRail } from './components/NavigationRail';
+import { BottomDock } from './components/BottomDock';
+import { MoreSheet } from './components/MoreSheet';
+import { ToastContainer } from './components/ToastContainer';
+import { ScreenSkeleton, ModalSkeleton } from './components/Skeletons';
 import { UserLoginModal } from './components/UserLoginModal';
 import { FirstRunSetupScreen } from './components/FirstRunSetupScreen';
-import { DashboardView } from './components/DashboardView';
-import { AgreementsView } from './components/AgreementsView';
-import { RecoveryView } from './components/RecoveryView';
-import { CustomersView } from './components/CustomersView';
-import { StockView } from './components/StockView';
-import { CashbookView } from './components/CashbookView';
-import { AiAssistantView } from './components/AiAssistantView';
-import { SettingsView } from './components/SettingsView';
+import { PinLockScreen } from './components/PinLockScreen';
 import { PaymentModal } from './components/PaymentModal';
 import { NewAgreementModal } from './components/NewAgreementModal';
-import { BusinessReportModal } from './components/BusinessReportModal';
 import { ReceiveStockModal } from './components/ReceiveStockModal';
 import { ReversePaymentModal } from './components/ReversePaymentModal';
-import { PinLockScreen } from './components/PinLockScreen';
 import { Customer, Agreement, Payment } from './types';
-import { M3ColorSchemeName, M3_DARK_SCHEMES, M3_LIGHT_SCHEMES } from './theme/m3Theme';
+import { M3ColorSchemeName, applyThemeToDocument } from './theme/m3Theme';
+import { NavTabId, normalizeTabId } from './config/navigation';
+import { AppActionsProvider, useAppActions } from './context/AppActionsContext';
 
-export default function App() {
+// Lazy-loaded Views & Modals for bundle optimization
+const HomeView = lazy(() => import('./components/HomeView').then((m) => ({ default: m.HomeView })));
+const AgreementsView = lazy(() => import('./components/AgreementsView').then((m) => ({ default: m.AgreementsView })));
+const RecoveryView = lazy(() => import('./components/RecoveryView').then((m) => ({ default: m.RecoveryView })));
+const StockView = lazy(() => import('./components/StockView').then((m) => ({ default: m.StockView })));
+const CustomersView = lazy(() => import('./components/CustomersView').then((m) => ({ default: m.CustomersView })));
+const CashbookView = lazy(() => import('./components/CashbookView').then((m) => ({ default: m.CashbookView })));
+const SettingsView = lazy(() => import('./components/SettingsView').then((m) => ({ default: m.SettingsView })));
+const ActivityLedgerView = lazy(() => import('./components/ActivityLedgerView').then((m) => ({ default: m.ActivityLedgerView })));
+const AiAssistantView = lazy(() => import('./components/AiAssistantView').then((m) => ({ default: m.AiAssistantView })));
+const BusinessReportModal = lazy(() => import('./components/BusinessReportModal').then((m) => ({ default: m.BusinessReportModal })));
+
+function MainAppLayout() {
   const {
     settings,
     setSettings,
@@ -46,8 +50,6 @@ export default function App() {
     loginUser,
     logoutUser,
     activityLedger,
-    logActivity,
-    verifyPermission,
     logReportView,
     customers,
     addCustomer,
@@ -67,7 +69,6 @@ export default function App() {
     payments,
     recordPayment,
     reversePayment,
-    reversals,
     stockReceipts,
     stockMovements,
     cashbook,
@@ -78,15 +79,13 @@ export default function App() {
     importBackupJSON,
   } = useQistStore();
 
-  const [activeTab, setActiveTab] = useState<TabType>('app_center');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [permissionDeniedToast, setPermissionDeniedToast] = useState<string | null>(null);
-  const [showUserLoginModal, setShowUserLoginModal] = useState<boolean>(false);
+  const actions = useAppActions();
+  const [activeTabRaw, setActiveTabRaw] = useState<string>('home');
+  const activeTab: NavTabId = normalizeTabId(activeTabRaw);
 
-  const triggerPermissionToast = (msg?: string) => {
-    setPermissionDeniedToast(msg || "You don't have permission");
-    setTimeout(() => setPermissionDeniedToast(null), 3500);
-  };
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showUserLoginModal, setShowUserLoginModal] = useState<boolean>(false);
+  const [showMoreSheet, setShowMoreSheet] = useState<boolean>(false);
 
   // Material 3 Theme Mode & ColorScheme
   const themeMode = settings.themeMode || 'dark';
@@ -94,28 +93,13 @@ export default function App() {
   const isLight = themeMode === 'light';
 
   useEffect(() => {
-    const isLightMode = themeMode === 'light';
-    if (isLightMode) {
-      document.body.classList.remove('dark');
-      document.body.classList.add('light');
-    } else {
-      document.body.classList.remove('light');
-      document.body.classList.add('dark');
-    }
-
-    const schemeObj = isLightMode
-      ? M3_LIGHT_SCHEMES[colorScheme] || M3_LIGHT_SCHEMES.expressive
-      : M3_DARK_SCHEMES[colorScheme] || M3_DARK_SCHEMES.expressive;
-
     const root = document.documentElement;
-    Object.entries(schemeObj).forEach(([token, val]) => {
-      const kebab = token.replace(/([A-Z])/g, '-$1').toLowerCase();
-      root.style.setProperty(`--theme-${kebab}`, val);
-      root.style.setProperty(`--md-sys-color-${kebab}`, val);
-    });
-    if (schemeObj.appBarBg) {
-      root.style.setProperty('--theme-appbar-bg', schemeObj.appBarBg);
-    }
+    root.classList.add('theme-transition');
+    applyThemeToDocument(colorScheme, themeMode);
+    const timer = setTimeout(() => {
+      root.classList.remove('theme-transition');
+    }, 250);
+    return () => clearTimeout(timer);
   }, [themeMode, colorScheme]);
 
   const handleToggleThemeMode = () => {
@@ -132,24 +116,6 @@ export default function App() {
     }));
   };
 
-  // Modals state
-  const [showDrawer, setShowDrawer] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [preselectedAgrId, setPreselectedAgrId] = useState<string | undefined>();
-  const [preselectedSlotNum, setPreselectedSlotNum] = useState<number | undefined>();
-
-  const [showNewAgrModal, setShowNewAgrModal] = useState(false);
-  const [preselectedItemId, setPreselectedItemId] = useState<string | undefined>();
-  const [showBusinessReportModal, setShowBusinessReportModal] = useState(false);
-  const [showReceiveStockModal, setShowReceiveStockModal] = useState(false);
-  const [paymentToReverse, setPaymentToReverse] = useState<Payment | null>(null);
-
-  // Today Cash Calculation
-  const todayStr = '2026-09-28';
-  const todayCollectionTotal = payments
-    .filter((p) => p.date === todayStr)
-    .reduce((sum, p) => sum + p.amountPaid, 0);
-
   // Overdue count for badge
   const overdueCount = agreements.reduce((count, a) => {
     if (a.status === 'completed' || a.status === 'cancelled') return count;
@@ -157,16 +123,14 @@ export default function App() {
     return isOverdue ? count + 1 : count;
   }, 0);
 
-  // Category low stock threshold count
+  // Low stock count
   const lowStockCategories = getLowStockCategories(categories, stock);
   const lowStockCount = lowStockCategories.length;
 
-  // Handlers
-  const handleOpenCollectPayment = (agrId?: string, slotNum?: number) => {
-    setPreselectedAgrId(agrId);
-    setPreselectedSlotNum(slotNum);
-    setShowPaymentModal(true);
-  };
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayCollectionTotal = payments
+    .filter((p) => p.date === todayStr)
+    .reduce((sum, p) => sum + p.amountPaid, 0);
 
   const handleSendWhatsAppReminder = (
     customer: Customer,
@@ -190,10 +154,16 @@ export default function App() {
     );
   }
 
+  const isModalOpen =
+    actions.showNewAgrModal ||
+    actions.showPaymentModal ||
+    actions.showReceiveStockModal ||
+    actions.showBusinessReportModal ||
+    !!actions.paymentToReverse ||
+    showUserLoginModal;
+
   return (
-    <div className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${
-      isLight ? 'bg-slate-100 text-slate-800' : 'bg-slate-950 text-slate-100'
-    } selection:bg-emerald-500 selection:text-white`}>
+    <div className="min-h-screen flex font-sans transition-colors duration-200 bg-bg text-text selection:bg-primary selection:text-on-primary">
       
       {/* PIN Lock Protection Screen if Locked */}
       {settings.isLocked && (
@@ -203,397 +173,235 @@ export default function App() {
         />
       )}
 
-      {/* Main App Layout Header */}
-      <Header
-        settings={settings}
-        currentUser={currentUser}
-        onOpenUserLogin={() => setShowUserLoginModal(true)}
+      {/* Desktop Navigation Rail (Screen >= 768px) */}
+      <NavigationRail
         activeTab={activeTab}
-        onBackToDashboard={() => setActiveTab('app_center')}
-        onOpenNewAgreement={() => {
-          setPreselectedItemId(undefined);
-          setShowNewAgrModal(true);
-        }}
-        onOpenNewPayment={() => handleOpenCollectPayment()}
-        onOpenReceiveStock={() => setShowReceiveStockModal(true)}
-        onToggleDrawer={() => setShowDrawer((prev) => !prev)}
-        onToggleLock={() => setSettings((prev) => ({ ...prev, isLocked: !prev.isLocked }))}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        todayCollectionTotal={todayCollectionTotal}
-        stock={stock}
-        agreements={agreements}
-        customers={customers}
-        payments={payments}
-        onNavigateTab={(tab) => setActiveTab(tab)}
-        onOpenBusinessReport={() => setShowBusinessReportModal(true)}
+        setActiveTab={(t) => setActiveTabRaw(t)}
+        overdueCount={overdueCount}
+        lowStockCount={lowStockCount}
+        currentUserRole={currentUser?.role}
+        onOpenMoreSheet={() => setShowMoreSheet(true)}
+      />
+
+      {/* Main App Container */}
+      <div className="flex-1 flex flex-col min-w-0 pb-24 md:pb-6">
+        
+        {/* Sticky App Bar Header */}
+        <Header
+          settings={settings}
+          currentUser={currentUser}
+          onOpenUserLogin={() => setShowUserLoginModal(true)}
+          activeTab={activeTab}
+          onBackToDashboard={() => setActiveTabRaw('home')}
+          onOpenNewAgreement={() => actions.runAction('new_agreement')}
+          onOpenNewPayment={() => actions.runAction('collect_payment')}
+          onOpenReceiveStock={() => actions.runAction('receive_stock')}
+          onOpenBusinessReport={() => actions.runAction('business_report')}
+          onToggleDrawer={() => setShowMoreSheet(true)}
+          onToggleLock={() => setSettings((prev) => ({ ...prev, isLocked: !prev.isLocked }))}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          todayCollectionTotal={todayCollectionTotal}
+          stock={stock}
+          agreements={agreements}
+          customers={customers}
+          payments={payments}
+          onNavigateTab={(t) => setActiveTabRaw(t)}
+          themeMode={themeMode}
+          onToggleThemeMode={handleToggleThemeMode}
+          colorScheme={colorScheme}
+          onSelectColorScheme={handleSelectColorScheme}
+        />
+
+        {/* View Surface Container with Suspense Fallback Skeleton */}
+        <main className="flex-1 p-3 sm:p-4 md:p-6 max-w-7xl w-full mx-auto">
+          <Suspense fallback={<ScreenSkeleton />}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.18, ease: [0.2, 0, 0, 1] }}
+              >
+                {activeTab === 'home' && (
+                  <HomeView
+                    agreements={agreements}
+                    customers={customers}
+                    stock={stock}
+                    payments={payments}
+                    settings={settings}
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    onNavigateTab={(t) => setActiveTabRaw(t)}
+                  />
+                )}
+
+                {activeTab === 'agreements' && (
+                  <AgreementsView
+                    agreements={agreements}
+                    customers={customers}
+                    stock={stock}
+                    settings={settings}
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    onOpenNewAgreement={() => actions.runAction('new_agreement')}
+                    onOpenCollectPayment={(agrId, slotNum) =>
+                      actions.runAction('collect_payment', { agreementId: agrId, installmentNum: slotNum })
+                    }
+                  />
+                )}
+
+                {activeTab === 'recovery' && (
+                  <RecoveryView
+                    agreements={agreements}
+                    customers={customers}
+                    payments={payments}
+                    currentUser={currentUser}
+                    settings={settings}
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    onOpenCollectPayment={(agrId, slotNum) =>
+                      actions.runAction('collect_payment', { agreementId: agrId, installmentNum: slotNum })
+                    }
+                    onOpenReversePayment={(p) => actions.setPaymentToReverse(p)}
+                    onAttemptRestrictedAction={(msg) => actions.showToast(msg || "Admin authority required", 'error')}
+                    onSendWhatsApp={handleSendWhatsAppReminder}
+                  />
+                )}
+
+                {activeTab === 'stock' && (
+                  <StockView
+                    stock={stock}
+                    categories={categories}
+                    stockMovements={stockMovements}
+                    settings={settings}
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    onAddStockItem={addStockItem}
+                    onUpdateStockItem={updateStockItem}
+                    onDeleteStockItem={deleteStockItem}
+                    onOpenReceiveStock={() => actions.runAction('receive_stock')}
+                    onOpenNewBooking={(itemId) => actions.runAction('new_agreement', { itemId })}
+                    onAddCategory={addCategory}
+                    onUpdateCategory={updateCategory}
+                    onDeleteCategory={deleteCategory}
+                  />
+                )}
+
+                {activeTab === 'customers' && (
+                  <CustomersView
+                    customers={customers}
+                    agreements={agreements}
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    onAddCustomer={addCustomer}
+                    onUpdateCustomer={updateCustomer}
+                    onDeleteCustomer={deleteCustomer}
+                    onOpenNewAgreementForCustomer={(cust) =>
+                      actions.runAction('new_agreement', { customerId: cust.id })
+                    }
+                  />
+                )}
+
+                {activeTab === 'cashbook' && (
+                  <CashbookView
+                    cashbook={cashbook}
+                    settings={settings}
+                    onAddCashEntry={addCashBookEntry}
+                    onOpenBusinessReport={() => actions.runAction('business_report')}
+                  />
+                )}
+
+                {activeTab === 'reports' && (
+                  <div className="m3-card p-6 text-center space-y-4">
+                    <h2 className="text-xl font-black font-heading text-text">
+                      Business Financial Audit & PnL Reports
+                    </h2>
+                    <p className="text-xs text-text-muted max-w-md mx-auto">
+                      Click below to open the comprehensive FIFO Profit & Loss Ledger and PDF/Excel Audit Export Terminal.
+                    </p>
+                    <button
+                      onClick={() => actions.runAction('business_report')}
+                      className="m3-btn-base m3-btn-filled px-6 py-3"
+                    >
+                      Open Executive Audit Terminal
+                    </button>
+                  </div>
+                )}
+
+                {activeTab === 'activity_ledger' && (
+                  <ActivityLedgerView
+                    entries={activityLedger}
+                    isLight={isLight}
+                  />
+                )}
+
+                {activeTab === 'ai_assistant' && (
+                  <AiAssistantView
+                    settings={settings}
+                  />
+                )}
+
+                {activeTab === 'settings' && (
+                  <SettingsView
+                    settings={settings}
+                    setSettings={setSettings}
+                    auditLogs={auditLogs}
+                    users={users}
+                    currentUser={currentUser}
+                    onCreateUser={createUserAccount}
+                    onEditUser={editUserAccount}
+                    onResetPassword={resetUserPassword}
+                    onToggleUserActive={setUserActiveStatus}
+                    onUnlockUser={unlockUserAccount}
+                    onChangeOwnPassword={changeOwnPassword}
+                    onUpdateOwnDisplayName={changeOwnDisplayName}
+                    onExportJSON={exportBackupJSON}
+                    onImportJSON={importBackupJSON}
+                    onResetDemoData={resetToDemoData}
+                  />
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </Suspense>
+        </main>
+      </div>
+
+      {/* Floating Bottom Dock (Screen < 768px) */}
+      <BottomDock
+        activeTab={activeTab}
+        setActiveTab={(t) => setActiveTabRaw(t)}
+        overdueCount={overdueCount}
+        lowStockCount={lowStockCount}
+        currentUserRole={currentUser?.role}
+        isModalOpen={isModalOpen}
+      />
+
+      {/* More Apps & Utilities Sheet */}
+      <MoreSheet
+        isOpen={showMoreSheet}
+        onClose={() => setShowMoreSheet(false)}
+        activeTab={activeTab}
+        setActiveTab={(t) => setActiveTabRaw(t)}
+        currentUser={currentUser}
+        settings={settings}
         themeMode={themeMode}
         onToggleThemeMode={handleToggleThemeMode}
         colorScheme={colorScheme}
         onSelectColorScheme={handleSelectColorScheme}
+        onOpenUserLogin={() => setShowUserLoginModal(true)}
+        onLogout={logoutUser}
       />
 
-      {/* Side Navigation Drawer */}
-      <NavDrawer
-        isOpen={showDrawer}
-        onClose={() => setShowDrawer(false)}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        settings={settings}
-        overdueCount={overdueCount}
-        lowStockCount={lowStockCount}
-        onOpenNewAgreement={() => {
-          setPreselectedItemId(undefined);
-          setShowNewAgrModal(true);
-        }}
-        onOpenNewPayment={() => handleOpenCollectPayment()}
-        onOpenReceiveStock={() => setShowReceiveStockModal(true)}
-        onOpenBusinessReport={() => setShowBusinessReportModal(true)}
-      />
+      {/* Global Snackbar Toasts */}
+      <ToastContainer />
 
-      {/* Material 3 Top Navigation Tabs */}
-      <Navigation
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        overdueCount={overdueCount}
-        lowStockCount={lowStockCount}
-        onOpenBusinessReport={() => setShowBusinessReportModal(true)}
-        themeMode={themeMode}
-      />
-
-      {/* View Container - Responsive with safe padding for Mobile Bottom Navigation */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 md:p-6 pb-24 md:pb-8 space-y-6">
-        
-        {/* Top Navigation Bar with Back to App Center button when inside a module */}
-        {activeTab !== 'app_center' && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 border rounded-2xl p-3 sm:p-4 shadow-sm transition-colors duration-200 ${
-              isLight
-                ? 'bg-white border-slate-200 text-slate-800'
-                : 'bg-slate-900 border-slate-800 text-white'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setActiveTab('app_center')}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
-                title="Return to App Center Main Hub"
-              >
-                <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
-                <span>← Back to App Center</span>
-              </button>
-
-              <span className={`text-xs hidden sm:inline font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                Native Enterprise APK Hub
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2 text-xs">
-              <button
-                onClick={() => setActiveTab('app_center')}
-                className={`font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
-                  isLight ? 'text-slate-700 hover:text-blue-600' : 'text-slate-300 hover:text-blue-400'
-                }`}
-              >
-                <Grid className="w-3.5 h-3.5 text-blue-500" />
-                <span>App Center</span>
-              </button>
-              <span className="text-slate-400">/</span>
-              <span className={`font-bold uppercase tracking-wider text-[11px] px-2.5 py-0.5 rounded-lg border font-mono-tabular ${
-                isLight ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-blue-950/80 text-blue-300 border-blue-800/60'
-              }`}>
-                {activeTab.replace('_', ' ')}
-              </span>
-            </div>
-          </motion.div>
-        )}
-
-        <AnimatePresence mode="wait">
-          {activeTab === 'app_center' && (
-            <motion.div
-              key="app_center"
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-            >
-              <AppCenterView
-                onSelectModule={(tab) => setActiveTab(tab)}
-                agreements={agreements}
-                stock={stock}
-                payments={payments}
-                settings={settings}
-                onOpenBusinessReport={() => setShowBusinessReportModal(true)}
-                onToggleLock={() => setSettings((prev) => ({ ...prev, isLocked: !prev.isLocked }))}
-                isLight={isLight}
-              />
-            </motion.div>
-          )}
-
-          {activeTab === 'dashboard' && (
-            <motion.div
-              key="dashboard"
-              initial={{ opacity: 0, x: 20, scale: 0.98 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: -20, scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-            >
-              <DashboardView
-                agreements={agreements}
-                customers={customers}
-                stock={stock}
-                payments={payments}
-                settings={settings}
-                categories={categories}
-                searchQuery={searchQuery}
-                onClearSearch={() => setSearchQuery('')}
-                onExportBackupJSON={exportBackupJSON}
-                onUpdateCategory={updateCategory}
-                onOpenNewAgreement={() => {
-                  setPreselectedItemId(undefined);
-                  setShowNewAgrModal(true);
-                }}
-                onOpenCollectPayment={handleOpenCollectPayment}
-                onSendWhatsApp={handleSendWhatsAppReminder}
-                onNavigateTab={setActiveTab}
-                onOpenBusinessReport={() => setShowBusinessReportModal(true)}
-                onToggleDrawer={() => setShowDrawer(true)}
-                onOpenReceiveStock={() => setShowReceiveStockModal(true)}
-              />
-            </motion.div>
-          )}
-
-          {activeTab === 'agreements' && (
-            <motion.div
-              key="agreements"
-              initial={{ opacity: 0, x: 20, scale: 0.98 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: -20, scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-            >
-              <AgreementsView
-                agreements={agreements}
-                customers={customers}
-                stock={stock}
-                settings={settings}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                onOpenNewAgreement={() => {
-                  setPreselectedItemId(undefined);
-                  setShowNewAgrModal(true);
-                }}
-                onOpenCollectPayment={handleOpenCollectPayment}
-              />
-            </motion.div>
-          )}
-
-          {activeTab === 'recovery' && (
-            <motion.div
-              key="recovery"
-              initial={{ opacity: 0, x: 20, scale: 0.98 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: -20, scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-            >
-              <RecoveryView
-                agreements={agreements}
-                customers={customers}
-                payments={payments}
-                currentUser={currentUser}
-                settings={settings}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                onOpenCollectPayment={handleOpenCollectPayment}
-                onOpenReversePayment={(p) => setPaymentToReverse(p)}
-                onAttemptRestrictedAction={(msg) => triggerPermissionToast(msg)}
-                onSendWhatsApp={handleSendWhatsAppReminder}
-              />
-            </motion.div>
-          )}
-
-          {activeTab === 'customers' && (
-            <motion.div
-              key="customers"
-              initial={{ opacity: 0, x: 20, scale: 0.98 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: -20, scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-            >
-              <CustomersView
-                customers={customers}
-                agreements={agreements}
-                payments={payments}
-                settings={settings}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                onAddCustomer={addCustomer}
-                onUpdateCustomer={updateCustomer}
-                onDeleteCustomer={deleteCustomer}
-                onOpenNewAgreement={() => {
-                  setPreselectedItemId(undefined);
-                  setShowNewAgrModal(true);
-                }}
-              />
-            </motion.div>
-          )}
-
-          {activeTab === 'stock' && (
-            <motion.div
-              key="stock"
-              initial={{ opacity: 0, x: 20, scale: 0.98 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: -20, scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-            >
-              <StockView
-                stock={stock}
-                categories={categories}
-                stockMovements={stockMovements}
-                settings={settings}
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                onAddStockItem={addStockItem}
-                onUpdateStockItem={updateStockItem}
-                onDeleteStockItem={deleteStockItem}
-                onOpenReceiveStock={() => setShowReceiveStockModal(true)}
-                onOpenNewBooking={(itemId) => {
-                  setPreselectedItemId(itemId);
-                  setShowNewAgrModal(true);
-                }}
-                onAddCategory={addCategory}
-                onUpdateCategory={updateCategory}
-                onDeleteCategory={deleteCategory}
-              />
-            </motion.div>
-          )}
-
-          {activeTab === 'cashbook' && (
-            <motion.div
-              key="cashbook"
-              initial={{ opacity: 0, x: 20, scale: 0.98 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: -20, scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-            >
-              <CashbookView
-                cashbook={cashbook}
-                settings={settings}
-                onAddCashEntry={addCashBookEntry}
-                onOpenBusinessReport={() => setShowBusinessReportModal(true)}
-              />
-            </motion.div>
-          )}
-
-          {activeTab === 'activity_ledger' && (
-            <motion.div
-              key="activity_ledger"
-              initial={{ opacity: 0, x: 20, scale: 0.98 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: -20, scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-            >
-              <ActivityLedgerView entries={activityLedger} isLight={isLight} />
-            </motion.div>
-          )}
-
-          {activeTab === 'ai_assistant' && (
-            <motion.div
-              key="ai_assistant"
-              initial={{ opacity: 0, x: 20, scale: 0.98 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: -20, scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-            >
-              <AiAssistantView settings={settings} />
-            </motion.div>
-          )}
-
-          {activeTab === 'settings' && (
-            <motion.div
-              key="settings"
-              initial={{ opacity: 0, x: 20, scale: 0.98 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: -20, scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-            >
-              <SettingsView
-                settings={settings}
-                setSettings={setSettings}
-                auditLogs={auditLogs}
-                users={users}
-                currentUser={currentUser}
-                onCreateUser={createUserAccount}
-                onEditUser={editUserAccount}
-                onResetPassword={resetUserPassword}
-                onToggleUserActive={setUserActiveStatus}
-                onUnlockUser={unlockUserAccount}
-                onChangeOwnPassword={changeOwnPassword}
-                onUpdateOwnDisplayName={changeOwnDisplayName}
-                onExportJSON={exportBackupJSON}
-                onImportJSON={importBackupJSON}
-                onResetDemoData={resetToDemoData}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-      </main>
-
-      {/* Collect Payment Modal */}
-      {showPaymentModal && (
-        <PaymentModal
-          agreements={agreements}
-          customers={customers}
-          settings={settings}
-          preselectedAgreementId={preselectedAgrId}
-          preselectedInstallmentNum={preselectedSlotNum}
-          onClose={() => {
-            setShowPaymentModal(false);
-            setPreselectedAgrId(undefined);
-            setPreselectedSlotNum(undefined);
-          }}
-          onRecordPayment={recordPayment}
-        />
-      )}
-
-      {/* New Sale Agreement Wizard Modal */}
-      {showNewAgrModal && (
-        <NewAgreementModal
-          customers={customers}
-          stock={stock}
-          settings={settings}
-          preselectedItemId={preselectedItemId}
-          onClose={() => {
-            setShowNewAgrModal(false);
-            setPreselectedItemId(undefined);
-          }}
-          onCreateAgreement={createAgreement}
-        />
-      )}
-
-      {/* Business Report Modal */}
-      {showBusinessReportModal && (
-        <BusinessReportModal
-          payments={payments}
-          agreements={agreements}
-          customers={customers}
-          stock={stock}
-          stockReceipts={stockReceipts}
-          stockMovements={stockMovements}
-          cashbook={cashbook}
-          auditLogs={auditLogs}
-          settings={settings}
-          onClose={() => setShowBusinessReportModal(false)}
-          onLogReportView={logReportView}
-        />
-      )}
-
-      {/* User Login & Role Switcher Modal */}
+      {/* MODALS */}
+      {/* 1. Account Login / Switch Modal */}
       <UserLoginModal
         users={users}
-        currentUser={currentUser}
+        currentUser={currentUser || users[0]}
         hasRealAdmin={hasRealAdmin}
         isOpen={showUserLoginModal}
         onClose={() => setShowUserLoginModal(false)}
@@ -602,74 +410,101 @@ export default function App() {
         isLight={isLight}
       />
 
-      {/* Permission Denied Toast Snackbar */}
-      <AnimatePresence>
-        {permissionDeniedToast && (
-          <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 50, scale: 0.9 }}
-            className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl bg-rose-600 text-white font-bold text-xs shadow-2xl border border-rose-400 flex items-center gap-3 animate-in shake"
-          >
-            <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping shrink-0" />
-            <span>You don't have permission</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Receive Stock Modal (Maal Entry) */}
-      {showReceiveStockModal && (
-        <ReceiveStockModal
+      {/* 2. New Sale Agreement Modal */}
+      {actions.showNewAgrModal && (
+        <NewAgreementModal
+          customers={customers}
           stock={stock}
           categories={categories}
           settings={settings}
-          onClose={() => setShowReceiveStockModal(false)}
-          onAddCategory={addCategory}
-          onReceiveStock={receiveStock}
-        />
-      )}
-
-      {/* Reverse Payment Modal */}
-      {paymentToReverse && (
-        <ReversePaymentModal
-          payment={paymentToReverse}
-          settings={settings}
-          onClose={() => setPaymentToReverse(null)}
-          onConfirmReversal={(paymentId, reason) => {
-            reversePayment(paymentId, reason);
-            setPaymentToReverse(null);
+          preselectedCustomerId={actions.preselectedCustomerId}
+          preselectedItemId={actions.preselectedItemId}
+          onClose={() => actions.setShowNewAgrModal(false)}
+          onAddCustomer={addCustomer}
+          onCreateAgreement={(agreementData) => {
+            const newAgr = createAgreement(agreementData);
+            actions.showToast(`Agreement #${newAgr.agreementNumber} created!`, 'success');
+            return newAgr;
           }}
         />
       )}
 
-      {/* Footer */}
-      <footer className={`border-t py-4 text-center text-xs transition-colors duration-200 hidden md:block ${
-        isLight ? 'bg-white border-slate-200 text-slate-500' : 'border-slate-900 bg-slate-950 text-slate-500'
-      }`}>
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>
-            © {new Date().getFullYear()} {settings.shopName} — Standalone Instalment Management System
-          </span>
-          <span className={`font-mono-tabular text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-            Material 3 Engine · Offline Storage Active
-          </span>
-        </div>
-      </footer>
+      {/* 3. Collect Installment Payment Modal */}
+      {actions.showPaymentModal && (
+        <PaymentModal
+          agreements={agreements}
+          customers={customers}
+          settings={settings}
+          preselectedAgreementId={actions.preselectedAgrId}
+          preselectedInstallmentNum={actions.preselectedInstallmentNum}
+          onClose={() => actions.setShowPaymentModal(false)}
+          onRecordPayment={(params) => {
+            const p = recordPayment(params);
+            actions.showToast(`Payment collected against Receipt #${p.receiptNumber}!`, 'success');
+            return p;
+          }}
+        />
+      )}
 
-      {/* Material 3 Android Mobile Bottom Navigation Bar & FAB */}
-      <M3BottomNavBar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        overdueCount={overdueCount}
-        lowStockCount={lowStockCount}
-        onOpenNewAgreement={() => {
-          setPreselectedItemId(undefined);
-          setShowNewAgrModal(true);
-        }}
-        onToggleDrawer={() => setShowDrawer((prev) => !prev)}
-        themeMode={themeMode}
-      />
+      {/* 4. Receive Stock Delivery Modal */}
+      {actions.showReceiveStockModal && (
+        <ReceiveStockModal
+          stock={stock}
+          categories={categories}
+          settings={settings}
+          onClose={() => actions.setShowReceiveStockModal(false)}
+          onAddCategory={addCategory}
+          onReceiveStock={(params) => {
+            receiveStock(params);
+            actions.showToast(`Stock delivery logged successfully!`, 'success');
+          }}
+        />
+      )}
+
+      {/* 5. Reverse / Change Payment Modal */}
+      {actions.paymentToReverse && (
+        <ReversePaymentModal
+          payment={actions.paymentToReverse}
+          settings={settings}
+          onClose={() => actions.setPaymentToReverse(null)}
+          onConfirmReversal={(paymentId, reason) => {
+            const res = reversePayment(paymentId, reason);
+            if (res.success) {
+              actions.showToast('Payment transaction reversed & ledger updated.', 'success');
+            } else {
+              actions.showToast(res.message || 'Reversal failed.', 'error');
+            }
+          }}
+        />
+      )}
+
+      {/* 6. Business Financial Audit & PnL Report Modal */}
+      {actions.showBusinessReportModal && (
+        <Suspense fallback={<ModalSkeleton />}>
+          <BusinessReportModal
+            payments={payments}
+            agreements={agreements}
+            customers={customers}
+            stock={stock}
+            stockReceipts={stockReceipts}
+            stockMovements={stockMovements}
+            cashbook={cashbook}
+            auditLogs={auditLogs}
+            settings={settings}
+            onClose={() => actions.setShowBusinessReportModal(false)}
+            onLogReportView={logReportView}
+          />
+        </Suspense>
+      )}
 
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AppActionsProvider>
+      <MainAppLayout />
+    </AppActionsProvider>
   );
 }

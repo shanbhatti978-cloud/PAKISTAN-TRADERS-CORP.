@@ -34,7 +34,6 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
   onClose,
   onLogin,
   onChangeOwnPassword,
-  isLight = false,
 }) => {
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -143,22 +142,20 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
-      <div className={`w-full max-w-md rounded-3xl border shadow-2xl overflow-hidden p-6 space-y-6 relative ${
-        isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-800 text-white'
-      }`}>
+    <div className="fixed inset-0 z-50 bg-scrim backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
+      <div className="w-full max-w-md rounded-3xl border border-border shadow-3 overflow-hidden p-6 space-y-6 relative bg-surface text-text">
         
         {/* Header */}
-        <div className="flex items-center justify-between border-b pb-4" style={{ borderColor: 'var(--theme-surface-border)' }}>
+        <div className="flex items-center justify-between border-b border-border pb-4">
           <div className="flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-blue-600/10 text-blue-500 border border-blue-500/20">
+            <div className="p-3 rounded-2xl bg-primary-container text-on-primary-container border border-border">
               <KeyRound className="w-6 h-6 stroke-[2.2]" />
             </div>
             <div>
-              <h2 className="text-lg font-black tracking-tight font-heading">
+              <h2 className="text-lg font-black tracking-tight font-heading text-text">
                 {mustChangeMode ? 'Update Temporary Password' : 'Account Login'}
               </h2>
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              <p className="text-xs font-semibold text-text-muted">
                 {mustChangeMode ? 'Password change required before proceeding' : 'Enter your credentials to sign in'}
               </p>
             </div>
@@ -168,8 +165,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
             <button
               type="button"
               onClick={handleClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-600 transition-all border"
-              style={{ backgroundColor: 'var(--theme-surface-input)', borderColor: 'var(--theme-surface-border)' }}
+              className="p-2 rounded-xl text-text-subtle hover:text-text transition-all border border-border bg-surface-2"
             >
               <X className="w-5 h-5" />
             </button>
@@ -178,12 +174,12 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
 
         {/* Subtle Demo Mode Badge (Only while demo accounts exist) */}
         {!hasRealAdmin && !mustChangeMode && (
-          <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-medium flex items-center justify-between">
+          <div className="p-3 rounded-2xl bg-warning-container text-on-warning-container border border-border text-xs font-medium flex items-center justify-between">
             <span className="flex items-center gap-1.5 font-bold">
-              <Shield className="w-4 h-4 text-amber-500" />
+              <Shield className="w-4 h-4 text-warning" />
               Demo mode active
             </span>
-            <span className="text-[10px] font-mono bg-amber-500/20 px-2 py-0.5 rounded-full font-bold">
+            <span className="text-[10px] font-mono bg-surface/50 px-2 py-0.5 rounded-full font-bold">
               Default users enabled
             </span>
           </div>
@@ -192,12 +188,12 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
         {/* FORCED PASSWORD CHANGE FORM */}
         {mustChangeMode ? (
           <form onSubmit={handleForcePasswordChangeSubmit} className="space-y-4">
-            <div className="p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-600 dark:text-blue-400 font-medium">
+            <div className="p-3 rounded-2xl bg-info-container text-on-info-container border border-border text-xs font-medium">
               You logged in with a temporary password or admin reset. Please set a new password (min 8 chars, 1 digit).
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-bold text-text-muted">
                 New Password
               </label>
               <div className="relative">
@@ -214,7 +210,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowNewPassword(!showNewPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-subtle hover:text-text"
                 >
                   {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -222,7 +218,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-bold text-text-muted">
                 Confirm New Password
               </label>
               <input
@@ -236,14 +232,14 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
             </div>
 
             {errorMsg && (
-              <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-400 text-xs font-bold flex items-center gap-2">
+              <div className="p-3 rounded-2xl bg-danger-container text-on-danger-container border border-border text-xs font-bold flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
             )}
 
             {successMsg && (
-              <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
+              <div className="p-3 rounded-2xl bg-success-container text-on-success-container border border-border text-xs font-bold flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>{successMsg}</span>
               </div>
@@ -252,7 +248,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="m3-btn-base m3-btn-filled w-full text-xs py-3 shadow-lg active:scale-98 cursor-pointer justify-center"
+              className="m3-btn-base m3-btn-filled w-full text-xs py-3 shadow-2 active:scale-98 cursor-pointer justify-center"
             >
               <Lock className="w-4 h-4" />
               <span>{isSubmitting ? 'Updating...' : 'Save New Password & Continue'}</span>
@@ -262,7 +258,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
           /* STANDARD LOGIN FORM */
           <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-bold text-text-muted">
                 Username
               </label>
               <input
@@ -278,7 +274,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-bold text-text-muted">
                 Password
               </label>
               <div className="relative">
@@ -294,7 +290,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-subtle hover:text-text transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -302,14 +298,14 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
             </div>
 
             {errorMsg && (
-              <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-700 dark:text-rose-400 text-xs font-bold flex items-center gap-2 animate-in shake duration-150">
+              <div className="p-3 rounded-2xl bg-danger-container text-on-danger-container border border-border text-xs font-bold flex items-center gap-2 animate-in shake duration-150">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
             )}
 
             {successMsg && (
-              <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+              <div className="p-3 rounded-2xl bg-success-container text-on-success-container border border-border text-xs font-bold flex items-center gap-2 animate-in fade-in">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
                 <span>{successMsg}</span>
               </div>
@@ -327,7 +323,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="m3-btn-base m3-btn-filled text-xs py-2.5 px-6 shadow-lg active:scale-95 transition-transform cursor-pointer"
+                className="m3-btn-base m3-btn-filled text-xs py-2.5 px-6 shadow-2 active:scale-95 transition-transform cursor-pointer"
               >
                 <UserCheck className="w-4 h-4" />
                 <span>{isSubmitting ? 'Authenticating...' : 'Sign In'}</span>

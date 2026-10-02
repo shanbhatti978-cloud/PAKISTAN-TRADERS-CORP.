@@ -1,49 +1,210 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-input: var(--surface-input);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-subtle: var(--text-subtle);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
+  --color-primary-container: var(--primary-container);
+  --color-on-primary-container: var(--on-primary-container);
+  --color-success: var(--success);
+  --color-on-success: var(--on-success);
+  --color-success-container: var(--success-container);
+  --color-on-success-container: var(--on-success-container);
+  --color-warning: var(--warning);
+  --color-on-warning: var(--on-warning);
+  --color-warning-container: var(--warning-container);
+  --color-on-warning-container: var(--on-warning-container);
+  --color-danger: var(--danger);
+  --color-on-danger: var(--on-danger);
+  --color-danger-container: var(--danger-container);
+  --color-on-danger-container: var(--on-danger-container);
+  --color-info: var(--info);
+  --color-on-info: var(--on-info);
+  --color-info-container: var(--info-container);
+  --color-on-info-container: var(--on-info-container);
+  --color-focus-ring: var(--focus-ring);
+  --color-scrim: var(--scrim);
+}
+
+:root {
+  color-scheme: light;
+
+  /* Semantic Design Tokens (Light Mode Defaults) */
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --surface-input: #ffffff;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --text: #0f172a;
+  --text-muted: #334155;
+  --text-subtle: #64748b;
+
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --on-primary: #ffffff;
+  --primary-container: #dbeafe;
+  --on-primary-container: #1e40af;
+
+  --success: #16a34a;
+  --on-success: #ffffff;
+  --success-container: #dcfce7;
+  --on-success-container: #14532d;
+
+  --warning: #d97706;
+  --on-warning: #ffffff;
+  --warning-container: #fef3c7;
+  --on-warning-container: #78350f;
+
+  --danger: #dc2626;
+  --on-danger: #ffffff;
+  --danger-container: #fee2e2;
+  --on-danger-container: #7f1d1d;
+
+  --info: #0284c7;
+  --on-info: #ffffff;
+  --info-container: #e0f2fe;
+  --on-info-container: #075985;
+
+  --focus-ring: rgba(37, 99, 235, 0.35);
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.12);
+  --scrim: rgba(0, 0, 0, 0.5);
+
+  /* Legacy M3 Theme Variable Aliases for Complete Compatibility */
+  --theme-primary: var(--primary);
+  --theme-primary-hover: var(--primary-hover);
+  --theme-primary-active: var(--primary-hover);
+  --theme-primary-foreground: var(--on-primary);
+  --theme-primary-container: var(--primary-container);
+  --theme-on-primary-container: var(--on-primary-container);
+  --theme-tonal-bg: var(--primary-container);
+  --theme-tonal-border: var(--border);
+  --theme-tonal-text: var(--on-primary-container);
+  --theme-surface-bg: var(--bg);
+  --theme-surface-card: var(--surface);
+  --theme-surface-input: var(--surface-input);
+  --theme-surface-border: var(--border);
+  --theme-text-primary: var(--text);
+  --theme-text-secondary: var(--text-muted);
+  --theme-text-muted: var(--text-subtle);
+  --theme-focus-ring: var(--focus-ring);
+  --theme-hero-banner-bg: #0f172a;
+  --theme-hero-banner-text: #ffffff;
+  --theme-hero-banner-muted: #cbd5e1;
+  --theme-hero-banner-accent: #3b82f6;
+  --theme-card-hover-border: var(--primary);
+  --theme-badge-bg: var(--primary);
+  --theme-badge-text: var(--on-primary);
+  --theme-appbar-bg: var(--surface);
+  --theme-nav-indicator-bg: var(--primary-container);
+  --theme-nav-indicator-text: var(--on-primary-container);
+  --theme-shadow-soft: var(--shadow-2);
+}
+
+:root.dark,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Semantic Design Tokens (Dark Mode) */
+  --bg: #030712;
+  --surface: #0f172a;
+  --surface-2: #1e293b;
+  --surface-input: #020617;
+  --border: #1e293b;
+  --border-strong: #334155;
+  --text: #f8fafc;
+  --text-muted: #cbd5e1;
+  --text-subtle: #94a3b8;
+
+  --primary: #3b82f6;
+  --primary-hover: #60a5fa;
+  --on-primary: #0f172a;
+  --primary-container: #1e3a8a;
+  --on-primary-container: #dbeafe;
+
+  --success: #22c55e;
+  --on-success: #052e16;
+  --success-container: #14532d;
+  --on-success-container: #dcfce7;
+
+  --warning: #f59e0b;
+  --on-warning: #451a03;
+  --warning-container: #78350f;
+  --on-warning-container: #fef3c7;
+
+  --danger: #ef4444;
+  --on-danger: #450a0a;
+  --danger-container: #7f1d1d;
+  --on-danger-container: #fee2e2;
+
+  --info: #38bdf8;
+  --on-info: #082f49;
+  --info-container: #075985;
+  --on-info-container: #e0f2fe;
+
+  --focus-ring: rgba(59, 130, 246, 0.4);
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --shadow-3: 0 12px 36px rgba(0, 0, 0, 0.6);
+  --scrim: rgba(0, 0, 0, 0.75);
+
+  --theme-primary: var(--primary);
+  --theme-primary-hover: var(--primary-hover);
+  --theme-primary-active: var(--primary-hover);
+  --theme-primary-foreground: var(--on-primary);
+  --theme-primary-container: var(--primary-container);
+  --theme-on-primary-container: var(--on-primary-container);
+  --theme-tonal-bg: var(--primary-container);
+  --theme-tonal-border: var(--border);
+  --theme-tonal-text: var(--on-primary-container);
+  --theme-surface-bg: var(--bg);
+  --theme-surface-card: var(--surface);
+  --theme-surface-input: var(--surface-input);
+  --theme-surface-border: var(--border);
+  --theme-text-primary: var(--text);
+  --theme-text-secondary: var(--text-muted);
+  --theme-text-muted: var(--text-subtle);
+  --theme-focus-ring: var(--focus-ring);
+  --theme-hero-banner-bg: #090d16;
+  --theme-hero-banner-text: #ffffff;
+  --theme-hero-banner-muted: #cbd5e1;
+  --theme-hero-banner-accent: #60a5fa;
+  --theme-card-hover-border: var(--primary);
+  --theme-badge-bg: var(--primary);
+  --theme-badge-text: var(--on-primary);
+  --theme-appbar-bg: var(--surface);
+  --theme-nav-indicator-bg: var(--primary-container);
+  --theme-nav-indicator-text: var(--on-primary-container);
+  --theme-shadow-soft: var(--shadow-2);
+}
+
 @layer base {
-  :root {
-    /* Dynamic Theme Variables - Controlled by active theme selection */
-    --theme-primary: #2563EB;
-    --theme-primary-hover: #1D4ED8;
-    --theme-primary-active: #1E40AF;
-    --theme-primary-foreground: #FFFFFF;
-    --theme-primary-container: #DBEAFE;
-    --theme-on-primary-container: #1E40AF;
-
-    --theme-hero-banner-bg: #0F172A;
-    --theme-hero-banner-text: #FFFFFF;
-    --theme-hero-banner-muted: #CBD5E1;
-    --theme-hero-banner-accent: #3B82F6;
-
-    --theme-tonal-bg: #EFF6FF;
-    --theme-tonal-border: #BFDBFE;
-    --theme-tonal-text: #1D4ED8;
-    --theme-card-hover-border: #2563EB;
-    --theme-focus-ring: rgba(37, 99, 235, 0.35);
-    --theme-badge-bg: #2563EB;
-    --theme-badge-text: #FFFFFF;
-    --theme-appbar-bg: rgba(248, 250, 252, 0.95);
-    --theme-nav-indicator-bg: #DBEAFE;
-    --theme-nav-indicator-text: #1D4ED8;
-    --theme-surface-bg: #F8FAFC;
-    --theme-surface-card: #F1F5F9;
-    --theme-surface-input: #FFFFFF;
-    --theme-surface-border: #E2E8F0;
-    --theme-text-primary: #020617;
-    --theme-text-secondary: #0F172A;
-    --theme-text-muted: #334155;
-    --theme-shadow-soft: 0px 4px 24px rgba(37, 99, 235, 0.05);
+  html {
+    scrollbar-gutter: stable;
   }
 
   body {
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     letter-spacing: -0.01em;
-    background-color: var(--theme-surface-bg);
-    color: var(--theme-text-primary);
+    background-color: var(--bg);
+    color: var(--text);
     overflow-x: hidden;
-    transition: background-color 220ms ease, color 220ms ease, border-color 220ms ease;
+    min-height: 100vh;
   }
-  
+
   h1, h2, h3, h4, .font-heading {
     font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
     letter-spacing: -0.02em;
@@ -54,41 +215,29 @@
     font-family: 'JetBrains Mono', monospace;
     font-variant-numeric: tabular-nums;
   }
+
+  /* Form Elements */
+  input, select, textarea {
+    accent-color: var(--primary);
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: var(--text-subtle);
+    opacity: 0.8;
+  }
 }
 
-/* Typography High Contrast Discipline */
-body.light {
-  color: #020617;
-  font-weight: 500;
-}
-
-body.light p, body.light span, body.light td, body.light th, body.light label, body.light input, body.light button {
-  color: #0f172a;
-}
-
-body.light .text-slate-400, body.light .text-slate-500, body.light .text-slate-600 {
-  color: #1e293b !important; /* Dark Slate 800 - maximum contrast legible writing */
-}
-
-body.light .text-slate-300, body.light .text-slate-200, body.light .text-slate-100 {
-  color: #020617 !important; /* Ultra-Dark Black Slate 950 */
-}
-
-body.dark {
-  color: #FFFFFF;
-}
-
-body.dark .text-slate-400, body.dark .text-slate-500 {
-  color: #E2E8F0 !important; /* High contrast bright text in dark mode */
-}
-
-body.dark .text-slate-300 {
-  color: #F8FAFC !important; /* Bright white */
+/* Theme Switch Transition Helper */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition: background-color 200ms ease, color 200ms ease, border-color 200ms ease, fill 200ms ease, stroke 200ms ease !important;
 }
 
 /* Material 3 Expressive & Universal Components */
 
-/* 1. Buttons - Pill shaped action controls */
+/* 1. Buttons */
 .m3-btn-base {
   display: inline-flex;
   align-items: center;
@@ -99,10 +248,16 @@ body.dark .text-slate-300 {
   line-height: 1.125rem;
   border-radius: 9999px;
   padding: 0.5rem 1.125rem;
+  min-height: 44px;
   transition: all 180ms cubic-bezier(0.2, 0, 0, 1);
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
+  outline: none;
+}
+
+.m3-btn-base:focus-visible {
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .m3-btn-base:active {
@@ -110,111 +265,112 @@ body.dark .text-slate-300 {
 }
 
 .m3-btn-filled {
-  background-color: var(--theme-primary);
-  color: var(--theme-primary-foreground);
+  background-color: var(--primary);
+  color: var(--on-primary);
   border: 1px solid transparent;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-1);
 }
 .m3-btn-filled:hover {
-  background-color: var(--theme-primary-hover);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-}
-.m3-btn-filled:active {
-  background-color: var(--theme-primary-active);
+  background-color: var(--primary-hover);
+  box-shadow: var(--shadow-2);
 }
 
 .m3-btn-tonal {
-  background-color: var(--theme-tonal-bg);
-  color: var(--theme-tonal-text);
-  border: 1px solid var(--theme-tonal-border);
+  background-color: var(--primary-container);
+  color: var(--on-primary-container);
+  border: 1px solid var(--border);
 }
 .m3-btn-tonal:hover {
-  background-color: var(--theme-primary-container);
-  color: var(--theme-on-primary-container);
-  border-color: var(--theme-primary);
+  background-color: var(--primary-hover);
+  color: var(--on-primary);
+  border-color: var(--primary);
 }
 
 .m3-btn-outlined {
   background-color: transparent;
-  color: var(--theme-primary);
-  border: 1px solid var(--theme-tonal-border);
+  color: var(--primary);
+  border: 1px solid var(--border);
 }
 .m3-btn-outlined:hover {
-  background-color: var(--theme-tonal-bg);
-  border-color: var(--theme-primary);
+  background-color: var(--primary-container);
+  color: var(--on-primary-container);
+  border-color: var(--primary);
 }
 
 .m3-btn-text {
   background-color: transparent;
-  color: var(--theme-primary);
+  color: var(--primary);
   border: 1px solid transparent;
 }
 .m3-btn-text:hover {
-  background-color: var(--theme-tonal-bg);
+  background-color: var(--primary-container);
 }
 
 /* 2. Floating Action Button */
 .m3-fab {
-  background-color: var(--theme-primary);
-  color: var(--theme-primary-foreground);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  background-color: var(--primary);
+  color: var(--on-primary);
+  box-shadow: var(--shadow-2);
   transition: all 200ms cubic-bezier(0.2, 0, 0, 1);
   border-radius: 9999px;
+  min-height: 48px;
+  min-width: 48px;
 }
 .m3-fab:hover {
-  background-color: var(--theme-primary-hover);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  background-color: var(--primary-hover);
+  box-shadow: var(--shadow-3);
   transform: translateY(-2px);
 }
 .m3-fab:active {
   transform: scale(0.96);
 }
 
-/* 3. Cards - 20px smooth rounded corners, subtle muted fills, diffuse drop-shadows */
+/* 3. Cards */
 .m3-card {
   border-radius: 20px;
-  background-color: var(--theme-surface-card);
-  border: 1px solid var(--theme-surface-border);
-  box-shadow: var(--theme-shadow-soft, 0px 4px 24px rgba(0,0,0,0.03));
-  transition: background-color 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-1);
+  transition: background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
 }
 .m3-card:hover {
-  border-color: var(--theme-card-hover-border);
+  border-color: var(--border-strong);
 }
 
-/* Dark Hero Banner / Highlight Card */
+/* Hero Banner / Highlight Card */
 .m3-hero-banner {
   border-radius: 20px;
   background-color: var(--theme-hero-banner-bg);
   color: var(--theme-hero-banner-text);
-  box-shadow: 0px 8px 32px rgba(0, 0, 0, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-2);
+  border: 1px solid var(--border-strong);
 }
 
 /* 4. Form Text Fields */
 .m3-input {
   width: 100%;
   padding: 0.6rem 0.85rem;
+  min-height: 44px;
   border-radius: 12px;
   font-size: 0.85rem;
   font-weight: 600;
-  background-color: var(--theme-surface-input);
-  border: 1px solid var(--theme-surface-border);
-  color: var(--theme-text-primary);
+  background-color: var(--surface-input);
+  border: 1px solid var(--border);
+  color: var(--text);
   transition: all 180ms cubic-bezier(0.2, 0, 0, 1);
   outline: none;
 }
 .m3-input:focus {
-  border-color: var(--theme-primary);
-  box-shadow: 0 0 0 3px var(--theme-focus-ring);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
-/* 5. Filter Badges & Chips */
+/* 5. Chips */
 .m3-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  height: 2rem;
+  height: 2.25rem;
   padding: 0 0.85rem;
   border-radius: 9999px;
   font-size: 0.75rem;
@@ -222,19 +378,19 @@ body.dark .text-slate-300 {
   transition: all 180ms ease;
   user-select: none;
   cursor: pointer;
-  background-color: var(--theme-surface-card);
-  border: 1px solid var(--theme-surface-border);
-  color: var(--theme-text-secondary);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
 }
 .m3-chip:hover {
-  background-color: var(--theme-tonal-bg);
-  color: var(--theme-primary);
-  border-color: var(--theme-tonal-border);
+  background-color: var(--primary-container);
+  color: var(--on-primary-container);
+  border-color: var(--primary);
 }
 .m3-chip-selected {
-  background-color: var(--theme-primary);
-  border-color: var(--theme-primary);
-  color: var(--theme-primary-foreground);
+  background-color: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
 }
 
 /* 6. Badges */
@@ -246,47 +402,26 @@ body.dark .text-slate-300 {
   border-radius: 9999px;
   font-size: 0.6875rem;
   font-weight: 700;
-  background-color: var(--theme-badge-bg);
-  color: var(--theme-badge-text);
+  background-color: var(--primary);
+  color: var(--on-primary);
   font-family: 'JetBrains Mono', monospace;
   font-variant-numeric: tabular-nums;
 }
 
-/* 7. Floating Bottom Nav Pill */
-.m3-nav-pill {
-  background-color: var(--theme-nav-indicator-bg);
-  color: var(--theme-nav-indicator-text);
-  border: 1px solid var(--theme-tonal-border);
-  border-radius: 9999px;
-}
-
-/* 8. Top App Bar */
-.m3-appbar {
-  background-color: var(--theme-appbar-bg);
-  border-bottom: 1px solid var(--theme-surface-border);
-}
-
-/* 9. Dialog Container */
+/* 7. Dialog Container */
 .m3-dialog {
-  background-color: var(--theme-surface-card);
-  border: 1px solid var(--theme-surface-border);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 24px;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-3);
 }
 
-/* Theme Utilities */
-.bg-theme-canvas {
-  background-color: var(--theme-surface-bg);
-}
-.bg-theme-card {
-  background-color: var(--theme-surface-card);
-}
-.bg-theme-primary {
-  background-color: var(--theme-primary);
-}
-.bg-theme-tonal {
-  background-color: var(--theme-tonal-bg);
-}
-.text-theme-primary {
-  color: var(--theme-primary);
+/* Reduced Motion Override */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
