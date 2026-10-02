@@ -1,37 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, FileSignature, Wallet, Package, Plus, Receipt, PackageCheck, LucideIcon } from 'lucide-react';
+import { Home, Sparkles, Calendar, Package } from 'lucide-react';
 import { NavTabId } from '../config/navigation';
 import { UserRole } from '../types';
-import { PermissionManager } from '../utils/permissionManager';
-import { useAppActions } from '../context/AppActionsContext';
 
 interface BottomDockProps {
   activeTab: NavTabId;
   setActiveTab: (tab: NavTabId) => void;
-  overdueCount: number;
-  lowStockCount: number;
+  overdueCount?: number;
+  lowStockCount?: number;
   currentUserRole?: UserRole;
   isModalOpen?: boolean;
-}
-
-interface DockItem {
-  id: NavTabId;
-  label: string;
-  icon: LucideIcon;
-  badge?: number;
-  badgeColor?: string;
 }
 
 export const BottomDock: React.FC<BottomDockProps> = ({
   activeTab,
   setActiveTab,
-  overdueCount,
-  lowStockCount,
-  currentUserRole = 'ADMIN',
+  overdueCount = 0,
+  lowStockCount = 0,
   isModalOpen = false,
 }) => {
-  const { runAction } = useAppActions();
   const [isScrollingDown, setIsScrollingDown] = useState(false);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const lastScrollY = useRef(0);
@@ -46,9 +34,9 @@ export const BottomDock: React.FC<BottomDockProps> = ({
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
-      if (currentScrollY > lastScrollY.current + 10 && currentScrollY > 60) {
+      if (currentScrollY > lastScrollY.current + 12 && currentScrollY > 60) {
         setIsScrollingDown(true);
-      } else if (currentScrollY < lastScrollY.current - 10) {
+      } else if (currentScrollY < lastScrollY.current - 12) {
         setIsScrollingDown(false);
       }
       lastScrollY.current = currentScrollY;
@@ -85,63 +73,6 @@ export const BottomDock: React.FC<BottomDockProps> = ({
     };
   }, []);
 
-  // 4 Dock items
-  const dockItems: DockItem[] = [
-    {
-      id: 'home',
-      label: 'Home',
-      icon: Home,
-    },
-    {
-      id: 'agreements',
-      label: 'Sales',
-      icon: FileSignature,
-    },
-    {
-      id: 'recovery',
-      label: 'Recovery',
-      icon: Wallet,
-      badge: overdueCount > 0 ? overdueCount : undefined,
-      badgeColor: 'bg-danger text-on-danger',
-    },
-    {
-      id: 'stock',
-      label: 'Stock',
-      icon: Package,
-      badge: lowStockCount > 0 ? lowStockCount : undefined,
-      badgeColor: 'bg-warning text-on-warning',
-    },
-  ];
-
-  // Contextual Quick Action Button specs per active tab
-  const getContextualAction = () => {
-    if (activeTab === 'agreements' && PermissionManager.can(currentUserRole, 'ADD_AGREEMENT')) {
-      return {
-        label: 'New Sale',
-        icon: Plus,
-        action: () => runAction('new_agreement'),
-      };
-    }
-    if (activeTab === 'recovery' && PermissionManager.can(currentUserRole, 'ADD_RECOVERY')) {
-      return {
-        label: 'Collect',
-        icon: Receipt,
-        action: () => runAction('collect_payment'),
-      };
-    }
-    if (activeTab === 'stock' && PermissionManager.can(currentUserRole, 'ADD_ITEM')) {
-      return {
-        label: 'Receive Stock',
-        icon: PackageCheck,
-        action: () => runAction('receive_stock'),
-      };
-    }
-    return null;
-  };
-
-  const quickAction = getContextualAction();
-  const shouldHideDock = isModalOpen || isInputFocused;
-
   const triggerHaptic = () => {
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try {
@@ -150,121 +81,90 @@ export const BottomDock: React.FC<BottomDockProps> = ({
     }
   };
 
-  if (shouldHideDock) return null;
+  // 4 Icon-only dock buttons
+  const dockButtons = [
+    {
+      id: 'home' as NavTabId,
+      label: 'Home',
+      icon: Home,
+    },
+    {
+      id: 'ai_assistant' as NavTabId,
+      label: 'AI & Sales Report',
+      icon: Sparkles,
+    },
+    {
+      id: 'agreements' as NavTabId,
+      label: 'Items & Agreements',
+      icon: Calendar,
+      badge: overdueCount > 0 ? overdueCount : undefined,
+    },
+    {
+      id: 'stock' as NavTabId,
+      label: 'Warehouse Stock',
+      icon: Package,
+      badge: lowStockCount > 0 ? lowStockCount : undefined,
+    },
+  ];
+
+  if (isModalOpen || isInputFocused) return null;
 
   return (
     <AnimatePresence>
-      <div className="fixed bottom-0 left-0 right-0 z-40 md:hidden pointer-events-none flex flex-col items-center">
-        
-        {/* Contextual Quick Action FAB (Floats above dock) */}
-        {quickAction && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.9 }}
-            animate={{
-              opacity: isScrollingDown ? 0.7 : 1,
-              y: isScrollingDown ? 60 : 0,
-              scale: isScrollingDown ? 0.85 : 1,
-            }}
-            exit={{ opacity: 0, y: 10, scale: 0.9 }}
-            transition={
-              prefersReducedMotion
-                ? { duration: 0 }
-                : { type: 'spring', stiffness: 450, damping: 28 }
-            }
-            className="pointer-events-auto mb-3 self-end mr-6"
-          >
-            <button
-              onClick={() => {
-                triggerHaptic();
-                quickAction.action();
-              }}
-              className="m3-btn-base m3-btn-filled px-4 py-3 shadow-3 flex items-center gap-2 rounded-full cursor-pointer active:scale-95 transition-transform"
-            >
-              <quickAction.icon className="w-5 h-5 stroke-[2.5]" />
-              <span className="font-heading font-extrabold text-xs">
-                {quickAction.label}
-              </span>
-            </button>
-          </motion.div>
-        )}
-
-        {/* Floating Bottom Dock Pill */}
+      <div className="fixed bottom-6 left-0 right-0 z-40 flex justify-center pointer-events-none">
         <motion.div
-          initial={{ y: 100, opacity: 0 }}
-          animate={{ y: isScrollingDown ? 100 : 0, opacity: isScrollingDown ? 0 : 1 }}
-          exit={{ y: 100, opacity: 0 }}
+          initial={{ y: 80, opacity: 0 }}
+          animate={{ y: isScrollingDown ? 80 : 0, opacity: isScrollingDown ? 0 : 1 }}
+          exit={{ y: 80, opacity: 0 }}
           transition={
             prefersReducedMotion
-              ? { duration: 0.1 }
+              ? { duration: 0 }
               : { type: 'spring', stiffness: 500, damping: 32 }
           }
-          style={{ bottom: 'calc(14px + env(safe-area-inset-bottom))' }}
-          className="relative pointer-events-auto mb-3 w-[92vw] max-w-[360px] h-[70px] rounded-[36px] bg-surface-2/90 backdrop-blur-xl border border-border/60 shadow-3 px-2 flex items-center justify-around overflow-hidden"
+          className="pointer-events-auto glass-pill-dock rounded-full px-2 py-1.5 flex items-center justify-between gap-1 shadow-[0_12px_36px_rgba(91,75,196,0.12)] min-w-[240px] max-w-[270px]"
         >
-          {dockItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
+          {dockButtons.map((btn) => {
+            const Icon = btn.icon;
+            const isActive = activeTab === btn.id;
 
             return (
               <button
-                key={item.id}
+                key={btn.id}
                 role="navigation"
+                aria-label={btn.label}
                 aria-current={isActive ? 'page' : undefined}
                 onClick={() => {
                   triggerHaptic();
-                  setActiveTab(item.id);
+                  setActiveTab(btn.id);
                 }}
-                className="relative min-w-[56px] min-h-[48px] flex flex-col items-center justify-center rounded-full transition-transform active:scale-94 focus-visible:ring-2 focus-visible:ring-focus-ring outline-none"
+                className="relative w-11 h-11 flex items-center justify-center rounded-full transition-transform active:scale-90 outline-none focus-visible:ring-2 focus-visible:ring-primary cursor-pointer"
               >
-                {/* Active Indicator Sliding Pill */}
+                {/* Active solid white circle with spring animation */}
                 {isActive && (
                   <motion.div
-                    layoutId="activeDockPill"
+                    layoutId="activeDockCircle"
                     transition={
                       prefersReducedMotion
                         ? { duration: 0 }
-                        : { type: 'spring', stiffness: 500, damping: 32 }
+                        : { type: 'spring', stiffness: 500, damping: 30 }
                     }
-                    className="absolute inset-x-1 inset-y-1 bg-primary-container rounded-full z-0"
+                    className="absolute inset-0 bg-white dark:bg-slate-800 rounded-full shadow-[0_2px_12px_rgba(0,0,0,0.1)] z-0"
                   />
                 )}
 
-                <div className="relative z-10 flex flex-col items-center justify-center gap-0.5 px-2">
-                  <motion.div
-                    animate={
-                      isActive && !prefersReducedMotion
-                        ? { scale: [1, 1.18, 1] }
-                        : { scale: 1 }
-                    }
-                    transition={{ duration: 0.22 }}
-                  >
-                    <Icon
-                      className={`w-5 h-5 transition-colors ${
-                        isActive
-                          ? 'text-on-primary-container stroke-[2.5]'
-                          : 'text-text-muted stroke-[2]'
-                      }`}
-                    />
-                  </motion.div>
-
-                  <span
-                    className={`text-[10px] font-bold tracking-tight transition-colors ${
+                <div className="relative z-10 flex items-center justify-center">
+                  <Icon
+                    className={`w-5 h-5 transition-colors ${
                       isActive
-                        ? 'text-on-primary-container font-heading font-extrabold'
-                        : 'text-text-subtle font-medium'
+                        ? 'text-[#5B4BC4] dark:text-[#BDB4F2] stroke-[2.4]'
+                        : 'text-[#6B6B7B] hover:text-[#1A1A22] dark:hover:text-white stroke-[2]'
                     }`}
-                  >
-                    {item.label}
-                  </span>
+                  />
 
-                  {/* Badges */}
-                  {item.badge !== undefined && item.badge > 0 && (
-                    <span
-                      className={`absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full text-[9px] font-mono-tabular font-extrabold flex items-center justify-center shadow-xs animate-in zoom-in-50 ${
-                        item.badgeColor || 'bg-primary text-on-primary'
-                      }`}
-                    >
-                      {item.badge > 99 ? '99+' : item.badge}
+                  {/* Badge */}
+                  {btn.badge !== undefined && btn.badge > 0 && (
+                    <span className="absolute -top-1 -right-1.5 w-3.5 h-3.5 rounded-full bg-[#F4A3A0] text-white text-[8px] font-black font-mono-tabular flex items-center justify-center shadow-xs">
+                      {btn.badge > 9 ? '•' : btn.badge}
                     </span>
                   )}
                 </div>
