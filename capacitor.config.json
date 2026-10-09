@@ -1,0 +1,8 @@
+{
+  "appId": "com.pakistantrader.app",
+  "appName": "Pakistan Trader Corporation",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}
