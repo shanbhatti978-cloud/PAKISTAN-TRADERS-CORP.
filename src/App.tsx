@@ -439,6 +439,7 @@ function MainAppLayout() {
         onSelectColorScheme={handleSelectColorScheme}
         onOpenUserLogin={() => setShowUserLoginModal(true)}
         onLogout={logoutUser}
+        onToggleLock={() => setSettings((prev) => ({ ...prev, isLocked: !prev.isLocked }))}
       />
 
       {/* Global Snackbar Toasts */}

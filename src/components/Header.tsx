@@ -368,63 +368,6 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Theme Color Selector Button */}
-          <div ref={paletteContainerRef} className="relative">
-            <button
-              onClick={() => setShowPaletteMenu(!showPaletteMenu)}
-              title="Theme Color Selection"
-              className="p-2 rounded-xl text-body-sm font-semibold transition-all border flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
-              style={{ backgroundColor: 'var(--theme-surface-card)', borderColor: 'var(--theme-surface-border)', color: 'var(--theme-text-primary)' }}
-            >
-              <Palette className="w-4 h-4" style={{ color: 'var(--theme-primary)' }} />
-            </button>
-
-            {/* Palette Dropdown Popover */}
-            {showPaletteMenu && (
-              <div className="absolute top-full right-0 mt-2 w-72 p-3 rounded-2xl shadow-2xl border z-50 glass-strong animate-in fade-in zoom-in-95 duration-150">
-                <div className="text-caption font-bold uppercase tracking-wider text-text-muted px-2 pb-2 border-b border-border/80 mb-2 flex items-center justify-between">
-                  <span>Glass Material Themes</span>
-                  <span className="text-caption font-mono text-primary font-bold">8 Materials</span>
-                </div>
-                <div className="space-y-1 max-h-80 overflow-y-auto">
-                  {Object.values(GLASS_THEMES).map((theme) => {
-                    const isSelected = migrateColorScheme(colorScheme) === theme.id;
-                    return (
-                      <button
-                        key={theme.id}
-                        onClick={() => {
-                          onSelectColorScheme?.(theme.id);
-                          setShowPaletteMenu(false);
-                        }}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-body-sm transition-colors text-left cursor-pointer ${
-                          isSelected
-                            ? 'bg-primary/15 text-primary font-bold border border-primary/30'
-                            : 'text-text hover:bg-surface/80 border border-transparent'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span
-                            className="w-5 h-5 rounded-full shadow-inner ring-1 ring-black/10 shrink-0"
-                            style={{ background: theme.preview.primary }}
-                          />
-                          <div className="min-w-0">
-                            <div className="font-semibold text-caption leading-tight text-text truncate">
-                              {theme.name}
-                            </div>
-                            <div className="text-caption text-text-muted font-medium leading-tight truncate">
-                              {theme.subtitle}
-                            </div>
-                          </div>
-                        </div>
-                        {isSelected && <span className="text-caption font-bold shrink-0 ml-1 text-primary">✓</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
           {/* Material 3 Light / Dark Mode Toggle Button */}
           {onToggleThemeMode && (
             <button
@@ -436,19 +379,6 @@ export const Header: React.FC<HeaderProps> = ({
               {isLight ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
             </button>
           )}
-
-          {/* Lock status button */}
-          <button
-            onClick={onToggleLock}
-            className="p-2 rounded-xl text-body-sm font-semibold transition-all border flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
-            style={{
-              backgroundColor: settings.isLocked ? 'rgba(220, 38, 38, 0.15)' : 'var(--theme-surface-card)',
-              borderColor: settings.isLocked ? 'rgba(220, 38, 38, 0.35)' : 'var(--theme-surface-border)',
-              color: settings.isLocked ? '#DC2626' : 'var(--theme-text-primary)',
-            }}
-          >
-            {settings.isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
-          </button>
         </div>
 
       </div>

@@ -4,6 +4,7 @@ import {
   Sun,
   Moon,
   Lock,
+  Unlock,
   LogOut,
   Shield,
   Palette,
@@ -38,6 +39,7 @@ interface MoreSheetProps {
   onOpenUserLogin?: () => void;
   onLogout?: () => void;
   onOpenAppearance?: () => void;
+  onToggleLock?: () => void;
 }
 
 /** Mapping of navigation destination ids to fixed theme icon-tile tokens */
@@ -65,6 +67,7 @@ export const MoreSheet: React.FC<MoreSheetProps> = ({
   onSelectColorScheme,
   onOpenUserLogin,
   onLogout,
+  onToggleLock,
 }) => {
   const { runAction } = useAppActions();
   const isLight = themeMode === 'light';
@@ -336,18 +339,17 @@ export const MoreSheet: React.FC<MoreSheetProps> = ({
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => {
-              onClose();
-              runAction('lock_app');
+              onToggleLock?.();
             }}
             className="p-3 rounded-2xl border text-body-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition-all duration-200 active:scale-98 min-h-[48px]"
             style={{
-              backgroundColor: 'var(--drawer-group, var(--surface))',
-              borderColor: 'var(--drawer-divider, var(--border))',
-              color: 'var(--text)',
+              backgroundColor: settings.isLocked ? 'rgba(220, 38, 38, 0.15)' : 'var(--drawer-group, var(--surface))',
+              borderColor: settings.isLocked ? 'rgba(220, 38, 38, 0.35)' : 'var(--drawer-divider, var(--border))',
+              color: settings.isLocked ? '#DC2626' : 'var(--text)',
             }}
           >
-            <Lock className="w-4 h-4 text-danger" />
-            <span>Lock PIN</span>
+            {settings.isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+            <span>{settings.isLocked ? 'Locked' : 'Unlock / Lock'}</span>
           </button>
 
           {onLogout && (
