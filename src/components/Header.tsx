@@ -11,6 +11,7 @@ import {
   Sun,
   Moon,
   Palette,
+  LogOut,
 } from 'lucide-react';
 import { ShopSettings, StockItem, Agreement, Customer, Payment, User } from '../types';
 import { NavTabId } from '../config/navigation';
@@ -22,6 +23,7 @@ interface HeaderProps {
   settings: ShopSettings;
   currentUser?: User;
   onOpenUserLogin?: () => void;
+  onLogout?: () => void;
   activeTab?: string;
   onBackToDashboard?: () => void;
   onOpenNewAgreement: () => void;
@@ -48,6 +50,7 @@ export const Header: React.FC<HeaderProps> = ({
   settings,
   currentUser,
   onOpenUserLogin,
+  onLogout,
   activeTab = 'dashboard',
   onBackToDashboard,
   onToggleDrawer,
@@ -129,7 +132,15 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-30 backdrop-blur-md border-b px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 transition-colors duration-200" style={{ backgroundColor: 'var(--theme-appbar-bg)', borderColor: 'var(--theme-surface-border)' }}>
+    <header
+      className="sticky top-0 z-30 backdrop-blur-md border-b px-3 sm:px-4 md:px-6 transition-colors duration-200"
+      style={{
+        backgroundColor: 'var(--theme-appbar-bg)',
+        borderColor: 'var(--theme-surface-border)',
+        paddingTop: 'calc(0.625rem + env(safe-area-inset-top, 0px))',
+        paddingBottom: '0.625rem',
+      }}
+    >
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
         
         {/* Left Zone: Menu Drawer Trigger + Brand Wordmark Title + Physical Back Button */}
@@ -344,28 +355,52 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* LOGGED-IN USER & ROLE BADGE BUTTON */}
           {currentUser && (
-            <button
-              onClick={onOpenUserLogin}
-              title={`Logged in as ${currentUser.fullName} (${currentUser.role}). Click to switch user / role.`}
-              className="p-1.5 sm:p-2 rounded-xl text-body-sm font-semibold transition-all border flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-xs"
-              style={{ backgroundColor: 'var(--theme-surface-card)', borderColor: 'var(--theme-surface-border)' }}
-            >
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="font-bold text-caption uppercase hidden sm:inline text-text">
-                  {currentUser.username}
-                </span>
-              </div>
-
-              {(() => {
-                const roleBadge = PermissionManager.getRoleBadgeStyle(currentUser.role);
-                return (
-                  <span className={`px-2 py-0.5 rounded-full text-caption font-black border uppercase tracking-wider font-mono-tabular ${roleBadge.badgeClass}`}>
-                    {roleBadge.label}
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={onOpenUserLogin}
+                title={`Logged in as ${currentUser.fullName} (${currentUser.role}). Click to switch user / role.`}
+                className="p-1.5 sm:p-2 rounded-xl text-body-sm font-semibold transition-all border flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-xs"
+                style={{ backgroundColor: 'var(--theme-surface-card)', borderColor: 'var(--theme-surface-border)' }}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="font-bold text-caption uppercase hidden sm:inline text-text">
+                    {currentUser.username}
                   </span>
-                );
-              })()}
-            </button>
+                </div>
+
+                {(() => {
+                  const roleBadge = PermissionManager.getRoleBadgeStyle(currentUser.role);
+                  return (
+                    <span className={`px-2 py-0.5 rounded-full text-caption font-black border uppercase tracking-wider font-mono-tabular ${roleBadge.badgeClass}`}>
+                      {roleBadge.label}
+                    </span>
+                  );
+                })()}
+              </button>
+
+              {/* Dedicated Sign Out / Logout Button for non-viewers */}
+              {onLogout && currentUser.role !== 'VIEWER' ? (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  title={`Sign out from ${currentUser.username} (${currentUser.role})`}
+                  className="p-1.5 sm:py-2 sm:px-2.5 rounded-xl text-caption font-bold transition-all border flex items-center gap-1 active:scale-95 cursor-pointer shadow-xs border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-red-600 dark:text-red-400"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden lg:inline">Sign Out</span>
+                </button>
+              ) : onOpenUserLogin && currentUser.role === 'VIEWER' ? (
+                <button
+                  type="button"
+                  onClick={onOpenUserLogin}
+                  title="Sign In with Admin or Supervisor credentials"
+                  className="py-1.5 px-2.5 rounded-xl text-caption font-bold transition-all border flex items-center gap-1 active:scale-95 cursor-pointer shadow-xs bg-primary text-on-primary border-primary"
+                >
+                  <span>Sign In</span>
+                </button>
+              ) : null}
+            </div>
           )}
 
           {/* Material 3 Light / Dark Mode Toggle Button */}

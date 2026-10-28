@@ -23,7 +23,13 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ settings, onUnlock
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-scrim backdrop-blur-md flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 z-50 bg-scrim backdrop-blur-md flex items-center justify-center p-4"
+      style={{
+        paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))',
+      }}
+    >
       <div className="w-full max-w-sm bg-surface border border-border rounded-3xl p-8 text-center space-y-6 shadow-3 relative overflow-hidden">
         <div className="w-16 h-16 rounded-2xl bg-primary text-on-primary mx-auto flex items-center justify-center shadow-2">
           <Lock className="w-8 h-8" />

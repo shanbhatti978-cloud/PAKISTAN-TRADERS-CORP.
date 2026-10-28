@@ -20,6 +20,7 @@ import { applyGlassThemeToDocument, migrateColorScheme } from './theme/glassThem
 import { NavTabId, normalizeTabId } from './config/navigation';
 import { AppActionsProvider, useAppActions } from './context/AppActionsContext';
 import { AmbientBackground } from './components/AmbientBackground';
+import { useAndroidBackManager } from './utils/androidBackManager';
 
 // Lazy-loaded Views & Modals for bundle optimization
 const HomeView = lazy(() => import('./components/HomeView').then((m) => ({ default: m.HomeView })));
@@ -67,6 +68,8 @@ function MainAppLayout() {
     deleteStockItem,
     agreements,
     createAgreement,
+    updateAgreement,
+    deleteAgreement,
     payments,
     recordPayment,
     reversePayment,
@@ -209,6 +212,20 @@ function MainAppLayout() {
     !!actions.paymentToReverse ||
     showUserLoginModal;
 
+  useAndroidBackManager({
+    activeTab,
+    setActiveTabRaw,
+    searchQuery,
+    setSearchQuery,
+    showMoreSheet,
+    setShowMoreSheet,
+    showUserLoginModal,
+    setShowUserLoginModal,
+    closeAllModals: actions.closeAllModals,
+    isAnyModalOpen: isModalOpen,
+    showToast: actions.showToast,
+  });
+
   return (
     <div className="min-h-screen flex font-sans transition-colors duration-200 bg-bg text-text selection:bg-primary selection:text-on-primary">
       
@@ -234,6 +251,7 @@ function MainAppLayout() {
           settings={settings}
           currentUser={currentUser}
           onOpenUserLogin={() => setShowUserLoginModal(true)}
+          onLogout={logoutUser}
           activeTab={activeTab}
           onBackToDashboard={() => setActiveTabRaw('home')}
           onOpenNewAgreement={() => actions.runAction('new_agreement')}
@@ -288,6 +306,7 @@ function MainAppLayout() {
                     agreements={agreements}
                     customers={customers}
                     stock={stock}
+                    currentUser={currentUser}
                     settings={settings}
                     searchQuery={searchQuery}
                     setSearchQuery={setSearchQuery}
@@ -295,6 +314,22 @@ function MainAppLayout() {
                     onOpenCollectPayment={(agrId, slotNum) =>
                       actions.runAction('collect_payment', { agreementId: agrId, installmentNum: slotNum })
                     }
+                    onUpdateAgreement={(id, updates) => {
+                      try {
+                        updateAgreement(id, updates);
+                        actions.showToast('Sale agreement updated.', 'success');
+                      } catch (err: any) {
+                        actions.showToast(err?.message || 'Failed to update agreement.', 'error');
+                      }
+                    }}
+                    onDeleteAgreement={(id) => {
+                      try {
+                        deleteAgreement(id);
+                        actions.showToast('Sale agreement deleted.', 'success');
+                      } catch (err: any) {
+                        actions.showToast(err?.message || 'Failed to delete agreement.', 'error');
+                      }
+                    }}
                   />
                 )}
 
@@ -321,17 +356,54 @@ function MainAppLayout() {
                     stock={stock}
                     categories={categories}
                     stockMovements={stockMovements}
+                    currentUser={currentUser}
                     settings={settings}
                     searchQuery={searchQuery}
                     setSearchQuery={setSearchQuery}
-                    onAddStockItem={addStockItem}
-                    onUpdateStockItem={updateStockItem}
-                    onDeleteStockItem={deleteStockItem}
+                    onAddStockItem={(item) => {
+                      const added = addStockItem(item);
+                      actions.showToast(`Stock model "${added.name}" added to inventory.`, 'success');
+                      return added;
+                    }}
+                    onUpdateStockItem={(id, updates) => {
+                      try {
+                        updateStockItem(id, updates);
+                        actions.showToast('Stock model updated successfully.', 'success');
+                      } catch (err: any) {
+                        actions.showToast(err?.message || 'Failed to update stock item.', 'error');
+                      }
+                    }}
+                    onDeleteStockItem={(id) => {
+                      try {
+                        deleteStockItem(id);
+                        actions.showToast('Stock model removed from inventory.', 'success');
+                      } catch (err: any) {
+                        actions.showToast(err?.message || 'Failed to delete stock item.', 'error');
+                      }
+                    }}
                     onOpenReceiveStock={() => actions.runAction('receive_stock')}
                     onOpenNewBooking={(itemId) => actions.runAction('new_agreement', { itemId })}
-                    onAddCategory={addCategory}
-                    onUpdateCategory={updateCategory}
-                    onDeleteCategory={deleteCategory}
+                    onAddCategory={(cat) => {
+                      const added = addCategory(cat);
+                      actions.showToast(`Category "${added.name}" created.`, 'success');
+                      return added;
+                    }}
+                    onUpdateCategory={(id, updates) => {
+                      try {
+                        updateCategory(id, updates);
+                        actions.showToast('Category updated.', 'success');
+                      } catch (err: any) {
+                        actions.showToast(err?.message || 'Failed to update category.', 'error');
+                      }
+                    }}
+                    onDeleteCategory={(id) => {
+                      try {
+                        deleteCategory(id);
+                        actions.showToast('Category deleted successfully.', 'success');
+                      } catch (err: any) {
+                        actions.showToast(err?.message || 'Failed to delete category.', 'error');
+                      }
+                    }}
                   />
                 )}
 
@@ -339,11 +411,30 @@ function MainAppLayout() {
                   <CustomersView
                     customers={customers}
                     agreements={agreements}
+                    currentUser={currentUser}
                     searchQuery={searchQuery}
                     setSearchQuery={setSearchQuery}
-                    onAddCustomer={addCustomer}
-                    onUpdateCustomer={updateCustomer}
-                    onDeleteCustomer={deleteCustomer}
+                    onAddCustomer={(c) => {
+                      const added = addCustomer(c);
+                      actions.showToast(`Customer "${added.fullName}" registered.`, 'success');
+                      return added;
+                    }}
+                    onUpdateCustomer={(id, updates) => {
+                      try {
+                        updateCustomer(id, updates);
+                        actions.showToast('Customer profile updated.', 'success');
+                      } catch (err: any) {
+                        actions.showToast(err?.message || 'Failed to update customer.', 'error');
+                      }
+                    }}
+                    onDeleteCustomer={(id) => {
+                      try {
+                        deleteCustomer(id);
+                        actions.showToast('Customer profile deleted.', 'success');
+                      } catch (err: any) {
+                        actions.showToast(err?.message || 'Failed to delete customer.', 'error');
+                      }
+                    }}
                     onOpenNewAgreementForCustomer={(cust) =>
                       actions.runAction('new_agreement', { customerId: cust.id })
                     }
@@ -455,6 +546,7 @@ function MainAppLayout() {
         onClose={() => setShowUserLoginModal(false)}
         onLogin={loginUser}
         onChangeOwnPassword={changeOwnPassword}
+        onLogout={logoutUser}
         isLight={isLight}
       />
 

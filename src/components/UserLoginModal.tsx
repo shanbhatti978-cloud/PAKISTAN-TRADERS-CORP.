@@ -9,6 +9,7 @@ import {
   AlertCircle,
   Shield,
   Lock,
+  LogOut,
 } from 'lucide-react';
 import { User } from '../types';
 
@@ -23,6 +24,7 @@ interface UserLoginModalProps {
     passwordAttempt: string
   ) => Promise<{ success: boolean; message: string; mustChangePassword?: boolean }> | { success: boolean; message: string; mustChangePassword?: boolean };
   onChangeOwnPassword?: (oldPass: string, newPass: string) => Promise<{ success: boolean; message: string }> | { success: boolean; message: string };
+  onLogout?: () => void;
   isLight?: boolean;
 }
 
@@ -34,6 +36,7 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
   onClose,
   onLogin,
   onChangeOwnPassword,
+  onLogout,
 }) => {
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -182,6 +185,52 @@ export const UserLoginModal: React.FC<UserLoginModalProps> = ({
             <span className="text-caption font-mono bg-surface/50 px-2.5 py-0.5 rounded-full font-bold">
               Default users enabled
             </span>
+          </div>
+        )}
+
+        {/* CURRENTLY SIGNED IN ACTIVE SESSION & DIRECT LOGOUT */}
+        {currentUser && !mustChangeMode && (
+          <div className="p-3.5 rounded-2xl bg-surface-2 border border-border flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
+                Active Account Session
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="font-extrabold text-body text-text truncate">
+                  {currentUser.fullName}
+                </span>
+                <span className={`text-[11px] font-extrabold px-2 py-0.5 rounded-full border uppercase tracking-wider font-mono-tabular ${
+                  currentUser.role === 'ADMIN'
+                    ? 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30'
+                    : currentUser.role === 'SUPERVISOR'
+                    ? 'bg-amber-500/15 text-amber-800 dark:text-amber-400 border-amber-500/30'
+                    : 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30'
+                }`}>
+                  {currentUser.role}
+                </span>
+              </div>
+              <div className="text-caption text-text-muted font-mono truncate">
+                @{currentUser.username}
+              </div>
+            </div>
+
+            {onLogout && (
+              <button
+                type="button"
+                onClick={() => {
+                  onLogout();
+                  setSuccessMsg('Signed out successfully! Switched to Read-Only Viewer mode.');
+                  setTimeout(() => {
+                    handleClose();
+                  }, 800);
+                }}
+                className="px-3.5 py-2 rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-red-600 dark:text-red-400 text-body-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shrink-0 shadow-xs"
+                title="Sign out of this account"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out</span>
+              </button>
+            )}
           </div>
         )}
 

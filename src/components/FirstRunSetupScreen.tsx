@@ -83,7 +83,13 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 sm:p-6 font-sans transition-colors bg-bg text-text">
+    <div
+      className="min-h-screen flex items-center justify-center p-4 sm:p-6 font-sans transition-colors bg-bg text-text"
+      style={{
+        paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))',
+      }}
+    >
       <div className="w-full max-w-lg rounded-3xl border border-border shadow-3 p-6 sm:p-8 space-y-6 relative overflow-hidden backdrop-blur-xl bg-surface">
         
         {/* Ambient Top Glow */}

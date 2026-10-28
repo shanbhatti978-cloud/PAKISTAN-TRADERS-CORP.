@@ -9,12 +9,13 @@ import {
   AlertTriangle,
   AlertCircle,
 } from 'lucide-react';
-import { CategoryItem, StockItem } from '../types';
+import { CategoryItem, StockItem, User } from '../types';
 import { ExpandableSearch } from './ExpandableSearch';
 
 interface CategoryManagementViewProps {
   categories: CategoryItem[];
   stock: StockItem[];
+  currentUser?: User;
   onAddCategory: (category: Omit<CategoryItem, 'id'>) => CategoryItem;
   onUpdateCategory: (id: string, updates: Partial<CategoryItem>) => void;
   onDeleteCategory: (id: string) => void;
@@ -23,13 +24,17 @@ interface CategoryManagementViewProps {
 export const CategoryManagementView: React.FC<CategoryManagementViewProps> = ({
   categories,
   stock,
+  currentUser,
   onAddCategory,
   onUpdateCategory,
   onDeleteCategory,
 }) => {
+  const isAdmin = currentUser?.role === 'ADMIN';
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<CategoryItem | null>(null);
+  const [categoryToDelete, setCategoryToDelete] = useState<CategoryItem | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Form State for Add / Edit
   const [name, setName] = useState('');
@@ -131,21 +136,19 @@ export const CategoryManagementView: React.FC<CategoryManagementViewProps> = ({
   };
 
   const handleDelete = (cat: CategoryItem) => {
-    const count = getItemCount(cat.name);
-    if (count > 0) {
-      if (
-        !window.confirm(
-          `Warning: "${cat.name}" has ${count} registered stock items. Are you sure you want to delete this category group?`
-        )
-      ) {
-        return;
-      }
-    } else {
-      if (!window.confirm(`Are you sure you want to delete the category group "${cat.name}"?`)) {
-        return;
-      }
+    setDeleteError(null);
+    setCategoryToDelete(cat);
+  };
+
+  const handleConfirmDeleteCategory = () => {
+    if (!categoryToDelete) return;
+    try {
+      onDeleteCategory(categoryToDelete.id);
+      setCategoryToDelete(null);
+      setDeleteError(null);
+    } catch (err: any) {
+      setDeleteError(err?.message || 'Failed to delete category.');
     }
-    onDeleteCategory(cat.id);
   };
 
   const filteredCategories = categories.filter((cat) => {
@@ -298,28 +301,34 @@ export const CategoryManagementView: React.FC<CategoryManagementViewProps> = ({
                           </span>
                         </span>
 
-                        {/* Quick inline threshold +/- controls */}
-                        <div className="flex items-center gap-1.5 bg-surface border border-border rounded-lg p-0.5">
-                          <button
-                            type="button"
-                            onClick={() => handleQuickUpdateThreshold(cat, -1)}
-                            className="w-6 h-6 rounded bg-surface-2 hover:bg-border text-text flex items-center justify-center font-bold text-caption active:scale-95 transition-all cursor-pointer"
-                            title="Decrease low stock threshold by 1"
-                          >
-                            -
-                          </button>
-                          <span className="font-black font-mono-tabular text-caption text-text px-1">
+                        {/* Quick inline threshold +/- controls (Admin only) */}
+                        {isAdmin ? (
+                          <div className="flex items-center gap-1.5 bg-surface border border-border rounded-lg p-0.5">
+                            <button
+                              type="button"
+                              onClick={() => handleQuickUpdateThreshold(cat, -1)}
+                              className="w-6 h-6 rounded bg-surface-2 hover:bg-border text-text flex items-center justify-center font-bold text-caption active:scale-95 transition-all cursor-pointer"
+                              title="Decrease low stock threshold by 1"
+                            >
+                              -
+                            </button>
+                            <span className="font-black font-mono-tabular text-caption text-text px-1">
+                              {threshold} units
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleQuickUpdateThreshold(cat, 1)}
+                              className="w-6 h-6 rounded bg-surface-2 hover:bg-border text-text flex items-center justify-center font-bold text-caption active:scale-95 transition-all cursor-pointer"
+                              title="Increase low stock threshold by 1"
+                            >
+                              +
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="font-black font-mono-tabular text-caption text-text px-2 py-0.5 rounded bg-surface border border-border">
                             {threshold} units
                           </span>
-                          <button
-                            type="button"
-                            onClick={() => handleQuickUpdateThreshold(cat, 1)}
-                            className="w-6 h-6 rounded bg-surface-2 hover:bg-border text-text flex items-center justify-center font-bold text-caption active:scale-95 transition-all cursor-pointer"
-                            title="Increase low stock threshold by 1"
-                          >
-                            +
-                          </button>
-                        </div>
+                        )}
                       </div>
 
                       <div className="flex items-center justify-between text-caption pt-1.5 border-t border-border font-medium">
@@ -350,23 +359,30 @@ export const CategoryManagementView: React.FC<CategoryManagementViewProps> = ({
                   Group ID: #{cat.id}
                 </span>
 
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => handleOpenEditModal(cat)}
-                    className="m3-btn-base m3-btn-tonal text-body-sm font-bold py-1.5 px-3.5"
-                  >
-                    <Edit className="w-3.5 h-3.5 text-primary" />
-                    <span>Edit</span>
-                  </button>
+                {isAdmin ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleOpenEditModal(cat)}
+                      className="m3-btn-base m3-btn-tonal text-body-sm font-bold py-1.5 px-3.5"
+                      title="Edit Category (Admin Only)"
+                    >
+                      <Edit className="w-3.5 h-3.5 text-primary" />
+                      <span>Edit</span>
+                    </button>
 
-                  <button
-                    onClick={() => handleDelete(cat)}
-                    title="Delete Category"
-                    className="p-1.5 text-text-muted hover:text-danger rounded-lg transition-all cursor-pointer"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                    <button
+                      onClick={() => handleDelete(cat)}
+                      title="Delete Category (Admin Only)"
+                      className="p-1.5 text-text-muted hover:text-danger rounded-lg transition-all cursor-pointer hover:bg-danger/10"
+                    >
+                      <Trash2 className="w-4 h-4 text-danger" />
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-[11px] font-semibold text-text-muted px-2 py-0.5 rounded bg-surface-2 border border-border">
+                    Read-only
+                  </span>
+                )}
               </div>
             </div>
           );
@@ -708,6 +724,79 @@ export const CategoryManagementView: React.FC<CategoryManagementViewProps> = ({
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Delete Category Confirmation Modal (Admin Only) */}
+      {isAdmin && categoryToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="m3-card max-w-md w-full p-6 space-y-4 m3-animate-in border border-rose-500/30">
+            <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
+              <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-title font-bold font-heading text-text">Delete Category Group</h3>
+                <p className="text-caption text-text-muted">Admin Confirmation Required</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-surface-2 border border-border text-body-sm space-y-1.5">
+              <div className="font-bold text-text flex items-center justify-between">
+                <span>{categoryToDelete.name}</span>
+                <span className="font-mono-tabular text-caption px-2 py-0.5 rounded bg-surface border border-border text-primary font-bold">
+                  {categoryToDelete.code || `CAT-${categoryToDelete.id}`}
+                </span>
+              </div>
+              {categoryToDelete.description && (
+                <p className="text-caption text-text-muted">{categoryToDelete.description}</p>
+              )}
+              {(() => {
+                const count = getItemCount(categoryToDelete.name);
+                return count > 0 ? (
+                  <div className="pt-1 flex items-center gap-1.5 text-rose-500 font-bold text-caption">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span>Warning: {count} stock items belong to this category!</span>
+                  </div>
+                ) : (
+                  <div className="pt-1 text-caption text-text-muted">
+                    No active stock items registered under this category.
+                  </div>
+                );
+              })()}
+            </div>
+
+            {deleteError && (
+              <div className="p-3 rounded-xl bg-danger-container text-on-danger-container border border-border text-caption font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            <p className="text-caption text-text-muted leading-relaxed">
+              Are you sure you want to permanently delete this category group? This action cannot be undone.
+            </p>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-border">
+              <button
+                type="button"
+                onClick={() => {
+                  setCategoryToDelete(null);
+                  setDeleteError(null);
+                }}
+                className="m3-btn-base m3-btn-outlined text-body-sm py-2.5 px-4 font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteCategory}
+                className="m3-btn-base bg-red-600 hover:bg-red-700 text-white text-body-sm py-2.5 px-5 font-bold rounded-full transition-all cursor-pointer shadow-md"
+              >
+                Delete Permanently
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -424,10 +424,24 @@ export function useQistStore() {
 
   const logoutUser = () => {
     logActivity('LOGOUT', 'Auth', `User '${currentUser.username}' logged out`);
-    const activeViewer = users.find((u) => u.role === 'VIEWER' && u.isActive !== false);
-    if (activeViewer) {
-      setCurrentUser(activeViewer);
+    addAuditLog('USER_LOGOUT', `User ${currentUser.username} logged out`);
+
+    let activeViewer = users.find((u) => u.role === 'VIEWER' && u.isActive !== false);
+    if (!activeViewer) {
+      activeViewer = {
+        id: 'usr-guest-viewer',
+        username: 'viewer',
+        passwordHash: '',
+        fullName: 'Read-Only Viewer',
+        role: 'VIEWER',
+        createdAt: new Date().toISOString().split('T')[0],
+        isActive: true,
+      };
+      setUsers((prev) => [...prev.filter((u) => u.username !== 'viewer'), activeViewer!]);
     }
+
+    setCurrentUser(activeViewer);
+    setStored(STORAGE_KEYS.CURRENT_USER, activeViewer);
   };
 
   // --- USER MANAGEMENT (ADMIN ONLY) ---
@@ -725,8 +739,8 @@ export function useQistStore() {
   };
 
   const updateCustomer = (id: string, updates: Partial<Customer>) => {
-    if (!verifyPermission('ADD_RELATED_ENTRIES', 'Customers', 'Update Customer')) {
-      throw new Error("You don't have permission to modify customer records.");
+    if (!verifyPermission('EDIT_ITEM', 'Customers', 'Update Customer Profile')) {
+      throw new Error("Only Admin has permission to modify customer records.");
     }
 
     const oldCust = customers.find((c) => c.id === id);
@@ -735,20 +749,20 @@ export function useQistStore() {
     );
 
     logActivity(
-      'ADD_ENTRY',
+      'EDIT_ITEM',
       'Customers',
-      `Updated customer profile ID: ${id}`,
+      `Updated customer profile: ${oldCust?.fullName || id}`,
       id,
       oldCust ? JSON.stringify(oldCust) : undefined,
       JSON.stringify(updates)
     );
 
-    addAuditLog('CUSTOMER_UPDATED', `Updated customer details ID: ${id}`);
+    addAuditLog('CUSTOMER_UPDATED', `Updated customer details: ${oldCust?.fullName || id}`);
   };
 
   const deleteCustomer = (id: string) => {
-    if (!verifyPermission('ADD_RELATED_ENTRIES', 'Customers', 'Delete Customer')) {
-      throw new Error("You don't have permission to delete customers.");
+    if (!verifyPermission('DELETE_ITEM', 'Customers', 'Delete Customer Profile')) {
+      throw new Error("Only Admin has permission to delete customers.");
     }
 
     const target = customers.find((c) => c.id === id);
@@ -1114,6 +1128,59 @@ export function useQistStore() {
     return newAgr;
   };
 
+  const updateAgreement = (id: string, updates: Partial<Agreement>) => {
+    if (!verifyPermission('CHANGE_AGREEMENT', 'Agreements', 'Edit Sale Agreement')) {
+      throw new Error("Only Admin has permission to modify sales agreements.");
+    }
+
+    const oldAgr = agreements.find((a) => a.id === id);
+    setAgreements((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, ...updates } : a))
+    );
+
+    logActivity(
+      'EDIT_AGREEMENT',
+      'Agreements',
+      `Admin updated agreement: ${oldAgr?.agreementNumber || id}`,
+      id,
+      oldAgr ? JSON.stringify(oldAgr) : undefined,
+      JSON.stringify(updates)
+    );
+
+    addAuditLog('AGREEMENT_UPDATED', `Updated agreement: ${oldAgr?.agreementNumber || id}`);
+  };
+
+  const deleteAgreement = (id: string, restoreStock: boolean = true) => {
+    if (!verifyPermission('DELETE_AGREEMENT', 'Agreements', 'Delete Sale Agreement')) {
+      throw new Error("Only Admin has permission to delete sales agreements.");
+    }
+
+    const target = agreements.find((a) => a.id === id);
+    if (!target) return;
+
+    if (restoreStock && target.itemId) {
+      setStock((prev) =>
+        prev.map((s) =>
+          s.id === target.itemId
+            ? { ...s, inStock: s.inStock + 1, status: 'available' }
+            : s
+        )
+      );
+    }
+
+    setAgreements((prev) => prev.filter((a) => a.id !== id));
+
+    logActivity(
+      'DELETE_AGREEMENT',
+      'Agreements',
+      `Admin deleted agreement ${target.agreementNumber} (${target.itemName})`,
+      id,
+      JSON.stringify(target)
+    );
+
+    addAuditLog('AGREEMENT_DELETED', `Deleted agreement: ${target.agreementNumber}`);
+  };
+
   // --- PAYMENT COLLECTION ---
   const recordPayment = (params: {
     agreementId: string;
@@ -1352,8 +1419,8 @@ export function useQistStore() {
   };
 
   const updateCategory = (id: string, updates: Partial<CategoryItem>) => {
-    if (!verifyPermission('ADD_RELATED_ENTRIES', 'Inventory', 'Update Product Category')) {
-      throw new Error("You don't have permission to modify product categories.");
+    if (!verifyPermission('EDIT_ITEM', 'Inventory', 'Update Product Category')) {
+      throw new Error("Only Admin has permission to modify product categories.");
     }
 
     setCategories((prev) =>
@@ -1363,12 +1430,14 @@ export function useQistStore() {
   };
 
   const deleteCategory = (id: string) => {
-    if (!verifyPermission('ADD_RELATED_ENTRIES', 'Inventory', 'Delete Product Category')) {
-      throw new Error("You don't have permission to delete product categories.");
+    if (!verifyPermission('DELETE_ITEM', 'Inventory', 'Delete Product Category')) {
+      throw new Error("Only Admin has permission to delete product categories.");
     }
 
+    const cat = categories.find((c) => c.id === id);
     setCategories((prev) => prev.filter((c) => c.id !== id));
-    logActivity('DELETE_ITEM', 'Inventory', `Deleted Category ID: ${id}`, id);
+    logActivity('DELETE_ITEM', 'Inventory', `Deleted category: ${cat?.name || id}`, id);
+    addAuditLog('CATEGORY_DELETED', `Deleted category ${cat?.name || id}`);
   };
 
   // --- BACKUP DATA MANAGEMENT ---
@@ -1502,6 +1571,8 @@ export function useQistStore() {
     stockMovements,
     agreements,
     createAgreement,
+    updateAgreement,
+    deleteAgreement,
     payments,
     recordPayment,
     reversePayment,

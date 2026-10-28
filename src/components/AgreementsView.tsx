@@ -9,14 +9,17 @@ import {
   Download,
   ChevronDown,
   ChevronUp,
-  User,
+  User as UserIcon,
   Package,
   ShieldAlert,
   ArrowRight,
   DollarSign,
   X,
+  Edit,
+  Trash2,
+  Shield,
 } from 'lucide-react';
-import { Agreement, Customer, StockItem, ShopSettings } from '../types';
+import { Agreement, Customer, StockItem, ShopSettings, User } from '../types';
 import { generateAgreementContractPDF } from '../utils/pdfGenerator';
 import { formatDateDDMMYYYY } from '../utils/formatters';
 import { ExpandableSearch } from './ExpandableSearch';
@@ -25,26 +28,72 @@ interface AgreementsViewProps {
   agreements: Agreement[];
   customers: Customer[];
   stock: StockItem[];
+  currentUser?: User;
   settings: ShopSettings;
   searchQuery: string;
   setSearchQuery?: (query: string) => void;
   onOpenNewAgreement: () => void;
   onOpenCollectPayment: (agreementId: string, installmentNum?: number) => void;
+  onUpdateAgreement?: (id: string, updates: Partial<Agreement>) => void;
+  onDeleteAgreement?: (id: string) => void;
 }
 
 export const AgreementsView: React.FC<AgreementsViewProps> = ({
   agreements,
   customers,
   stock,
+  currentUser,
   settings,
   searchQuery,
   setSearchQuery,
   onOpenNewAgreement,
   onOpenCollectPayment,
+  onUpdateAgreement,
+  onDeleteAgreement,
 }) => {
+  const isAdmin = currentUser?.role === 'ADMIN';
+
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed' | 'defaulter'>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [pageSize, setPageSize] = useState<number>(25);
+
+  // Edit Agreement State (Admin Only)
+  const [editingAgreement, setEditingAgreement] = useState<Agreement | null>(null);
+  const [editDeliveryDate, setEditDeliveryDate] = useState('');
+  const [editDueDay, setEditDueDay] = useState<number>(5);
+  const [editStatus, setEditStatus] = useState<'active' | 'completed' | 'cancelled' | 'defaulter'>('active');
+  const [editNotes, setEditNotes] = useState('');
+
+  // Delete Agreement Confirmation State (Admin Only)
+  const [agreementToDelete, setAgreementToDelete] = useState<Agreement | null>(null);
+
+  const handleStartEditAgreement = (agr: Agreement) => {
+    setEditingAgreement(agr);
+    setEditDeliveryDate(agr.deliveryDate || agr.startDate || '');
+    setEditDueDay(agr.dueDayOfMonth || 5);
+    setEditStatus(agr.status);
+    setEditNotes(agr.notes || '');
+  };
+
+  const handleSaveEditAgreement = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAgreement || !onUpdateAgreement) return;
+
+    onUpdateAgreement(editingAgreement.id, {
+      deliveryDate: editDeliveryDate,
+      dueDayOfMonth: editDueDay,
+      status: editStatus,
+      notes: editNotes.trim(),
+    });
+
+    setEditingAgreement(null);
+  };
+
+  const handleConfirmDeleteAgreement = () => {
+    if (!agreementToDelete || !onDeleteAgreement) return;
+    onDeleteAgreement(agreementToDelete.id);
+    setAgreementToDelete(null);
+  };
 
   // Filter logic
   const filtered = agreements.filter((a) => {
@@ -175,7 +224,7 @@ export const AgreementsView: React.FC<AgreementsViewProps> = ({
                     </div>
 
                     <h3 className="text-title font-bold font-heading flex items-center gap-2" style={{ color: 'var(--theme-text-primary)' }}>
-                      <User className="w-5 h-5 text-text-muted" />
+                      <UserIcon className="w-5 h-5 text-text-muted" />
                       {customer?.fullName || 'Customer'}
                       <span className="text-body-sm text-text-muted font-mono-tabular font-medium">({customer?.cnic})</span>
                     </h3>
@@ -221,6 +270,28 @@ export const AgreementsView: React.FC<AgreementsViewProps> = ({
                       >
                         <span>Collect</span>
                       </button>
+
+                      {/* EDIT & DELETE ONLY FOR ADMIN */}
+                      {isAdmin && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleStartEditAgreement(agreement)}
+                            className="p-2.5 rounded-full border border-border bg-surface-2 hover:bg-surface-3 text-primary transition-all cursor-pointer"
+                            title="Edit Agreement (Admin Only)"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAgreementToDelete(agreement)}
+                            className="p-2.5 rounded-full border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-red-600 dark:text-red-400 transition-all cursor-pointer"
+                            title="Delete Agreement (Admin Only)"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
 
                       <button
                         onClick={() => setExpandedId(isExpanded ? null : agreement.id)}
@@ -332,6 +403,149 @@ export const AgreementsView: React.FC<AgreementsViewProps> = ({
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* EDIT AGREEMENT MODAL (ADMIN ONLY) */}
+      {isAdmin && editingAgreement && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSaveEditAgreement}
+            className="m3-card max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 space-y-4 m3-animate-in"
+          >
+            <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--theme-surface-border)' }}>
+              <div>
+                <span className="text-[10px] font-bold text-primary uppercase tracking-wider">Admin Authority</span>
+                <h2 className="text-title sm:text-heading font-bold font-heading flex items-center gap-2" style={{ color: 'var(--theme-text-primary)' }}>
+                  <Edit className="w-5 h-5 text-primary" />
+                  Edit Contract: {editingAgreement.agreementNumber}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingAgreement(null)}
+                className="p-1.5 text-text-muted hover:text-text rounded-full"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3 rounded-xl bg-surface-2 border border-border text-body-sm space-y-1">
+              <div>Item: <strong className="text-text">{editingAgreement.itemName}</strong> <span className="text-text-muted font-mono-tabular">[{editingAgreement.itemSerial}]</span></div>
+              <div>Customer Code: <strong className="text-text font-mono-tabular">{editingAgreement.customerCode}</strong></div>
+              <div>Remaining Balance: <strong className="text-primary font-mono-tabular">{settings.currencySymbol} {editingAgreement.remainingBalance.toLocaleString()}</strong></div>
+            </div>
+
+            <div className="space-y-3.5 text-body-sm">
+              <div>
+                <label className="block font-bold mb-1 text-text">Contract Status</label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as any)}
+                  className="m3-input text-body font-bold"
+                >
+                  <option value="active">Active</option>
+                  <option value="completed">Completed (Paid Off)</option>
+                  <option value="defaulter">Defaulter (Overdue Non-Payment)</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1 text-text">Delivery / Start Date</label>
+                <input
+                  type="date"
+                  value={editDeliveryDate}
+                  onChange={(e) => setEditDeliveryDate(e.target.value)}
+                  className="m3-input text-body font-mono-tabular"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1 text-text">Monthly Due Day of Month (1 - 30)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={editDueDay}
+                  onChange={(e) => setEditDueDay(Number(e.target.value))}
+                  className="m3-input text-body font-mono-tabular font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1 text-text">Contract Remarks & Notes</label>
+                <textarea
+                  rows={3}
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  className="m3-input text-body"
+                  placeholder="Additional agreement notes or guarantor remarks..."
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t" style={{ borderColor: 'var(--theme-surface-border)' }}>
+              <button
+                type="button"
+                onClick={() => setEditingAgreement(null)}
+                className="m3-btn-base m3-btn-outlined text-body-sm py-2.5 px-4 font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="m3-btn-base m3-btn-filled text-body-sm py-2.5 px-5 font-bold"
+              >
+                Save Agreement
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* DELETE AGREEMENT CONFIRMATION DIALOG (ADMIN ONLY) */}
+      {isAdmin && agreementToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="m3-card max-w-md w-full p-6 space-y-4 m3-animate-in border border-rose-500/30">
+            <div className="flex items-center gap-3 text-red-600 dark:text-red-400">
+              <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-title font-bold font-heading text-text">Delete Sale Agreement</h3>
+                <p className="text-caption text-text-muted">Admin Authority Required</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-surface-2 border border-border text-body-sm space-y-1.5">
+              <div className="font-bold text-text font-mono-tabular">{agreementToDelete.agreementNumber}</div>
+              <div className="text-caption text-text-muted">Item: {agreementToDelete.itemName} [{agreementToDelete.itemSerial}]</div>
+              <div className="text-caption text-text-muted">Total Contract Price: {settings.currencySymbol} {agreementToDelete.totalInstalmentPrice.toLocaleString()}</div>
+              <div className="text-caption font-bold text-primary font-mono-tabular">Remaining: {settings.currencySymbol} {agreementToDelete.remainingBalance.toLocaleString()}</div>
+            </div>
+
+            <p className="text-caption text-text-muted leading-relaxed">
+              Are you sure you want to permanently delete this agreement? The assigned item unit will automatically be returned to available stock inventory.
+            </p>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setAgreementToDelete(null)}
+                className="m3-btn-base m3-btn-outlined text-body-sm py-2.5 px-4 font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteAgreement}
+                className="m3-btn-base bg-red-600 hover:bg-red-700 text-white text-body-sm py-2.5 px-5 font-bold rounded-full transition-all"
+              >
+                Delete Permanently
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

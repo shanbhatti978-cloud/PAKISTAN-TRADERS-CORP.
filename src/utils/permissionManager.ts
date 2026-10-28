@@ -33,6 +33,7 @@ export class PermissionManager {
           case 'ADD_RECOVERY':
           case 'ADD_AGREEMENT':
           case 'ADD_RELATED_ENTRIES':
+          case 'ADD_ITEM':
           case 'EXPORT_REPORTS':
             return true;
           case 'MANAGE_USERS':
