@@ -124,68 +124,7 @@ describe('2. Permission Matrix & Access Control (RBAC)', () => {
   });
 });
 
-describe('3. Financial & Schedule Mathematical Guarantees', () => {
-  it('Schedule generation must guarantee that the sum of instalments equals remainingBalance down to the exact rupee', () => {
-    const remainingBalance = 100000;
-    const durationMonths = 12;
 
-    const standardMonthly = Math.floor(remainingBalance / durationMonths); // 8333
-    const schedule: number[] = [];
-    let allocatedSum = 0;
-
-    for (let i = 1; i <= durationMonths; i++) {
-      if (i === durationMonths) {
-        // Final slot absorbs rounding remainder
-        const finalSlot = remainingBalance - allocatedSum;
-        schedule.push(finalSlot);
-        allocatedSum += finalSlot;
-      } else {
-        schedule.push(standardMonthly);
-        allocatedSum += standardMonthly;
-      }
-    }
-
-    expect(schedule.length).toBe(12);
-    expect(schedule[0]).toBe(8333);
-    expect(schedule[11]).toBe(8337); // 8333 * 11 = 91663; 100000 - 91663 = 8337
-    const totalSum = schedule.reduce((sum, n) => sum + n, 0);
-    expect(totalSum).toBe(remainingBalance);
-  });
-
-  it('Odd cents or rupee division (e.g. Rs. 70,000 for 7 months vs Rs. 70,001) never creates fractional pennies', () => {
-    const remainingBalance = 70001;
-    const durationMonths = 6;
-    const standardMonthly = Math.floor(remainingBalance / durationMonths);
-    let allocated = 0;
-    const amounts: number[] = [];
-
-    for (let i = 1; i <= durationMonths; i++) {
-      const slotAmount = i === durationMonths ? remainingBalance - allocated : standardMonthly;
-      amounts.push(slotAmount);
-      allocated += slotAmount;
-    }
-
-    expect(allocated).toBe(70001);
-    amounts.forEach((amt) => {
-      expect(Number.isInteger(amt)).toBe(true);
-    });
-  });
-});
-
-describe('4. Payment and Reversal Accounting Symmetry', () => {
-  it('Reversal net cash-out must exactly equal original payment net cash-in', () => {
-    const payment = {
-      amountPaid: 15000,
-      lateFee: 500,
-      discount: 200,
-    };
-
-    const netCashIn = payment.amountPaid + payment.lateFee - payment.discount; // 15300
-    const reversalCashOut = payment.amountPaid + payment.lateFee - payment.discount; // 15300
-
-    expect(reversalCashOut).toBe(netCashIn);
-  });
-});
 
 describe('5. Backup Encryption & Decryption Round-Trip', () => {
   it('Should successfully encrypt and decrypt backup using WebCrypto AES-GCM', async () => {

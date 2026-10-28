@@ -1,21 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
-
-// Initialize Gemini SDK with runtime key or environment fallback
-const getGenAIClient = () => {
-  if (
-    (typeof process !== 'undefined' && (process.env?.VITEST || process.env?.NODE_ENV === 'test')) ||
-    (typeof import.meta !== 'undefined' && (import.meta as any).env?.MODE === 'test')
-  ) {
-    return null;
-  }
-  const apiKey =
-    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GEMINI_API_KEY) ||
-    (typeof process !== 'undefined' && (process as any).env?.GEMINI_API_KEY) ||
-    '';
-  if (!apiKey) return null;
-  return new GoogleGenAI({ apiKey });
-};
-
 export interface RiskAssessmentResult {
   score: number; // 0 - 100 (Higher is safer)
   tier: 'Low Risk' | 'Moderate Risk' | 'High Risk';
@@ -84,8 +66,8 @@ export function assessCustomerRiskOffline(params: {
 
 /**
  * Assess Credit Risk for New Instalment Customer
- * Anonymizes applicant data before calling external Gemini API.
- * Validates and clamps AI JSON output with offline fallback.
+ * Anonymizes applicant data before calling server API.
+ * Falls back cleanly to offline rule engine.
  */
 export async function assessCustomerRisk(params: {
   fullName?: string;
@@ -97,49 +79,23 @@ export async function assessCustomerRisk(params: {
   hasGuarantors: boolean;
 }): Promise<RiskAssessmentResult> {
   const offlineResult = assessCustomerRiskOffline(params);
-  const ai = getGenAIClient();
-
-  if (!ai) {
-    return offlineResult;
-  }
 
   try {
-    // Anonymize: do NOT transmit customer name or personal identifiers to external API
-    const itemPrice = Math.max(1, Number(params.itemPrice) || 0);
-    const downPayment = Math.max(0, Number(params.requestedDownPayment) || 0);
-    const downPercent = Math.round((downPayment / itemPrice) * 100);
-
-    const prompt = `
-Act as a senior Pakistani installment business risk auditor for electronics & motorcycle retail.
-Evaluate this prospective applicant (data anonymized):
-- Occupation/Profession: ${params.profession || 'Self-employed / Trader'}
-- Monthly Income: PKR ${params.monthlyIncome}
-- Item Cash/Installment Value: PKR ${itemPrice}
-- Proposed Down Payment: PKR ${downPayment} (${downPercent}%)
-- Proposed Plan Duration: ${params.requestedMonths} Months
-- Verified Guarantors Provided: ${params.hasGuarantors ? 'Yes (2 Local Guarantors)' : 'No'}
-
-Respond ONLY with valid JSON with this exact schema:
-{
-  "score": number (integer between 1 and 100, where 100 is safest),
-  "tier": "Low Risk" | "Moderate Risk" | "High Risk",
-  "recommendedDownPaymentPercent": number (e.g. 25),
-  "maxRecommendedMonths": number (e.g. 12),
-  "recommendations": ["string1", "string2", "string3"]
-}
-`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
+    const res = await fetch('/api/ai/risk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        profession: params.profession || 'Trader / Business',
+        monthlyIncome: params.monthlyIncome,
+        itemPrice: params.itemPrice,
+        requestedDownPayment: params.requestedDownPayment,
+        requestedMonths: params.requestedMonths,
+        hasGuarantors: params.hasGuarantors,
+      }),
     });
 
-    const text = response.text || '';
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-
-      // Strict validation & clamping
+    if (res.ok) {
+      const parsed = await res.json();
       const rawScore = Number(parsed.score);
       const score = Math.max(1, Math.min(100, Number.isFinite(rawScore) ? Math.round(rawScore) : offlineResult.score));
 
@@ -176,7 +132,7 @@ Respond ONLY with valid JSON with this exact schema:
       };
     }
   } catch (err) {
-    console.warn('Gemini API call failed, falling back to rule engine:', err);
+    // Offline mode or server unavailable
   }
 
   return offlineResult;
@@ -194,65 +150,62 @@ export interface RecoveryMessageParams {
 }
 
 /**
- * Generate Customized WhatsApp/SMS Recovery Message
- * Supports Roman Urdu, Urdu, and English with offline templates.
- * Uses dynamic shop settings phone & name.
+ * Format Offline Recovery Reminder
  */
-export async function generateRecoveryMessage(params: RecoveryMessageParams): Promise<string> {
+export function formatOfflineRecoveryMessage(params: RecoveryMessageParams): string {
   const shop = params.shopName || 'Pakistan Trader Corporation';
-  const phone = params.shopPhone || '+92 300 8472910';
+  const phoneLine = params.shopPhone ? `\nShop Contact: ${params.shopPhone}` : '';
   const lang = params.language || 'Roman Urdu';
   const amountStr = Math.round(params.overdueAmount).toLocaleString();
+  const name = params.customerName || 'Valued Customer';
 
-  // Deterministic Offline Templates
-  const getOfflineMessage = () => {
-    if (lang === 'Urdu') {
-      return `السلام علیکم ${params.customerName} صاحب،\n${shop} کی طرف سے مودبانہ یاد دہانی: آپ کی سامان (${params.itemName}) کی ماہانہ قسط مبلغ -/${amountStr} روپے بتاریخ ${params.dueDate} واجب الادا تھی جو کہ ${params.daysLate} دن تاخیر کا شکار ہے۔\nبراہ کرم آج ہی دکان تشریف لا کر یا جاز کیش / ایزی پیسہ / بینک ٹرانسفر کے ذریعے ادائیگی فرمائیں تا کہ آپ کا کھاتہ باقاعدہ رہے۔ شکریہ!\nرابطہ نمبر: ${phone}`;
-    }
-    if (lang === 'English') {
-      return `Dear ${params.customerName},\nThis is a courteous reminder from ${shop} regarding your pending installment payment of PKR ${amountStr} for ${params.itemName}, which was due on ${params.dueDate} (${params.daysLate} days overdue).\nPlease visit the counter or transfer via JazzCash / EasyPaisa / Bank Transfer today to maintain an uninterrupted credit standing. Thank you!\nShop Contact: ${phone}`;
-    }
-    // Default: Roman Urdu
-    return `Assalam-o-Alaikum ${params.customerName} Sahib,\n${shop} ki taraf se yaad-dihani: Aap ki ${params.itemName} ki qist ba-mablagh Rs. ${amountStr} tareekh ${params.dueDate} ko wajib-ul-ada thi jo k ${params.daysLate} din se takheer ka shikar hai.\nBarah-e-karam shop par tashreef layein ya JazzCash / EasyPaisa / Bank Transfer k zariye aaj hi adaaigi farmaiye taake aap ka record theek rahe. Shukriya!\nRabta Shop: ${phone}`;
-  };
-
-  const ai = getGenAIClient();
-  if (!ai) {
-    return getOfflineMessage();
+  if (lang === 'Urdu') {
+    return `السلام علیکم ${name} صاحب،\n${shop} کی طرف سے مودبانہ یاد دہانی: آپ کی سامان (${params.itemName}) کی ماہانہ قسط مبلغ -/${amountStr} روپے بتاریخ ${params.dueDate} واجب الادا تھی جو کہ ${params.daysLate} دن تاخیر کا شکار ہے۔\nبراہ کرم آج ہی دکان تشریف لا کر یا جاز کیش / ایزی پیسہ کے ذریعے ادائیگی فرمائیں تا کہ آپ کا کھاتہ باقاعدہ رہے۔ شکریہ!${params.shopPhone ? `\nرابطہ نمبر: ${params.shopPhone}` : ''}`;
   }
+  if (lang === 'English') {
+    return `Dear ${name},\nThis is a courteous reminder from ${shop} regarding your pending installment payment of PKR ${amountStr} for ${params.itemName}, which was due on ${params.dueDate} (${params.daysLate} days overdue).\nPlease visit the counter or transfer via JazzCash / EasyPaisa / Bank Transfer today to maintain an uninterrupted credit standing. Thank you!${phoneLine}`;
+  }
+  // Default: Roman Urdu
+  return `Assalam-o-Alaikum ${name} Sahib,\n${shop} ki taraf se yaad-dihani: Aap ki ${params.itemName} ki qist ba-mablagh Rs. ${amountStr} tareekh ${params.dueDate} ko wajib-ul-ada thi jo k ${params.daysLate} din se takheer ka shikar hai.\nBarah-e-karam shop par tashreef layein ya JazzCash / EasyPaisa / Bank Transfer k zariye aaj hi adaaigi farmaiye taake aap ka record theek rahe. Shukriya!${params.shopPhone ? `\nRabta Shop: ${params.shopPhone}` : ''}`;
+}
+
+/**
+ * Generate Customized WhatsApp/SMS Recovery Message
+ * Calls server route when available, re-inserting customer name locally for privacy.
+ */
+export async function generateRecoveryMessage(params: RecoveryMessageParams): Promise<string> {
+  const offlineMsg = formatOfflineRecoveryMessage(params);
 
   try {
-    const prompt = `
-Generate a respectful, professional, and clear payment reminder message for a retail installment customer in Pakistan.
-Target Language: ${lang}
-Shop Name: ${shop}
-Shop Contact: ${phone}
-Customer Name: ${params.customerName}
-Item Purchased: ${params.itemName}
-Overdue Amount: PKR ${amountStr}
-Original Due Date: ${params.dueDate}
-Days Overdue: ${params.daysLate}
-
-Requirements:
-- Professional, culturally respectful tone for Pakistan retail culture.
-- State the overdue amount and days late clearly.
-- Mention payment methods: Counter Cash, JazzCash, EasyPaisa, or Online Bank Transfer.
-- Include shop contact number (${phone}) at the end.
-- Return ONLY the final message ready to send via WhatsApp/SMS without commentary.
-`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
+    const res = await fetch('/api/ai/reminder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        itemName: params.itemName,
+        overdueAmount: params.overdueAmount,
+        dueDate: params.dueDate,
+        daysLate: params.daysLate,
+        language: params.language || 'Roman Urdu',
+        shopName: params.shopName,
+        shopPhone: params.shopPhone,
+      }),
     });
 
-    const text = response.text?.trim();
-    if (text && text.length > 20) {
-      return text;
+    if (res.ok) {
+      const data = await res.json();
+      if (data.text && data.text.length > 20) {
+        // Re-insert customer's actual name locally
+        let text = data.text;
+        const name = params.customerName || 'Valued Customer';
+        if (text.includes('the customer')) {
+          text = text.replace(/the customer/gi, name);
+        }
+        return text;
+      }
     }
   } catch (err) {
-    console.warn('Gemini recovery message call failed, using offline template:', err);
+    // Offline mode
   }
 
-  return getOfflineMessage();
+  return offlineMsg;
 }

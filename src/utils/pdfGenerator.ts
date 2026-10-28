@@ -1,17 +1,18 @@
-import jsPDF from 'jspdf';
 import { Payment, Agreement, Customer, ShopSettings } from '../types';
 import { formatDateDDMMYYYY } from './formatters';
 import { todayLocal } from './dates';
+import type { jsPDF } from 'jspdf';
 
 /**
  * Generate & Download Payment Receipt PDF
  */
-export function generatePaymentReceiptPDF(
+export async function generatePaymentReceiptPDF(
   payment: Payment,
   agreement: Agreement,
   customer: Customer,
   settings: ShopSettings
 ) {
+  const { default: jsPDF } = await import('jspdf');
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -163,11 +164,12 @@ export function generatePaymentReceiptPDF(
 /**
  * Generate & Download Sale Agreement Contract PDF
  */
-export function generateAgreementContractPDF(
+export async function generateAgreementContractPDF(
   agreement: Agreement,
   customer: Customer,
   settings: ShopSettings
 ) {
+  const { default: jsPDF } = await import('jspdf');
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -352,12 +354,13 @@ export function generateAgreementContractPDF(
 /**
  * Generate 80mm Thermal Receipt Slip PDF
  */
-export function generateThermalReceiptPDF(
+export async function generateThermalReceiptPDF(
   payment: Payment,
   agreement: Agreement,
   customer: Customer,
   settings: ShopSettings
 ) {
+  const { default: jsPDF } = await import('jspdf');
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -442,10 +445,11 @@ export interface BusinessReportSummaryData {
 /**
  * Generate & Download Executive Financial Collection Report PDF
  */
-export function generateBusinessReportPDF(
+export async function generateBusinessReportPDF(
   summary: BusinessReportSummaryData,
   settings: ShopSettings
 ) {
+  const { default: jsPDF } = await import('jspdf');
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -576,7 +580,7 @@ export function generateBusinessReportPDF(
 /**
  * Comprehensive Audit Report PDF Generator for all 13 Report Types
  */
-export function generateComprehensiveAuditReportPDF(
+export async function generateComprehensiveAuditReportPDF(
   reportType: string,
   startDate: string,
   endDate: string,
@@ -590,6 +594,7 @@ export function generateComprehensiveAuditReportPDF(
   auditLogs: any[],
   settings: ShopSettings
 ) {
+  const { default: jsPDF } = await import('jspdf');
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -795,12 +800,13 @@ export function generateComprehensiveAuditReportPDF(
 /**
  * Generate & Download Printable Customer Payment Ledger Statement PDF
  */
-export function generateCustomerPaymentLedgerPDF(
+export async function generateCustomerPaymentLedgerPDF(
   customer: Customer,
   agreements: Agreement[],
   payments: Payment[],
   settings: ShopSettings
 ) {
+  const { default: jsPDF } = await import('jspdf');
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',

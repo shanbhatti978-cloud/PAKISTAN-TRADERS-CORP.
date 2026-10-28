@@ -149,6 +149,7 @@ export interface Payment {
   date: string;
   collectorName: string;
   isReversed?: boolean;
+  allocations?: { installmentNumber: number; amount: number }[];
   notes?: string;
 }
 

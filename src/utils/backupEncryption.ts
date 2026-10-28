@@ -92,11 +92,13 @@ export async function decryptBackup(encryptedJsonString: string, password: strin
     ['deriveKey']
   );
 
+  const iterations = Math.min(1000000, Math.max(100000, Number(pkg.iterations) || 100000));
+
   const aesKey = await crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
       salt: salt as unknown as BufferSource,
-      iterations: pkg.iterations || 100000,
+      iterations,
       hash: 'SHA-256',
     },
     keyMaterial,

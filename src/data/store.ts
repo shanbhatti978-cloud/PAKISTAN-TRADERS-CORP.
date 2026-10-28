@@ -178,6 +178,9 @@ function runInstallmentDateMigration(currentAgreements: Agreement[]): Agreement[
     });
 
     localStorage.setItem(MIGRATION_FLAG_KEY, 'true');
+    try {
+      localStorage.removeItem(BACKUP_KEY);
+    } catch {}
     if (modified) {
       setStored(STORAGE_KEYS.AGREEMENTS, updatedAgreements);
     }
@@ -356,6 +359,11 @@ export function useQistStore() {
     username: string;
     password: string;
     shopName?: string;
+    proprietorName?: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    regNumber?: string;
     keepDemoData?: boolean;
   }) => {
     const cleanUsername = params.username.toLowerCase().trim();
@@ -392,15 +400,17 @@ export function useQistStore() {
     setHasRealAdmin(true);
     setCurrentUser(realAdminUser);
 
-    if (params.shopName && params.shopName.trim()) {
+    // Default: start with empty data for real shop, clearing all business collections and resetting shop profile
+    if (!params.keepDemoData) {
       setSettings((prev) => ({
         ...prev,
-        shopName: params.shopName!.trim(),
+        shopName: params.shopName?.trim() || 'Pakistan Trader Corporation',
+        proprietorName: params.proprietorName?.trim() || params.fullName.trim(),
+        phone: params.phone?.trim() || '',
+        address: params.address?.trim() || '',
+        city: params.city?.trim() || '',
+        regNumber: params.regNumber?.trim() || '',
       }));
-    }
-
-    // Default: start with empty data for real shop, clearing all business collections
-    if (!params.keepDemoData) {
       setCustomers([]);
       setStock([]);
       setStockReceipts([]);
@@ -410,6 +420,11 @@ export function useQistStore() {
       setReversals([]);
       setCashbook([]);
       setAuditLogs([]);
+    } else if (params.shopName && params.shopName.trim()) {
+      setSettings((prev) => ({
+        ...prev,
+        shopName: params.shopName!.trim(),
+      }));
     }
 
     logActivity(
@@ -1165,16 +1180,18 @@ export function useQistStore() {
 
     // Monthly installment calculation & validation
     let monthlyInstalment = 0;
-    if (params.monthlyInstalment && params.monthlyInstalment > 0) {
-      const totalCustomExceptLast = params.monthlyInstalment * (params.monthDuration - 1);
-      if (totalCustomExceptLast >= remainingBalance) {
-        throw new Error("Custom monthly installment is too large for the remaining balance and duration.");
+    if (remainingBalance > 0) {
+      if (params.monthlyInstalment && params.monthlyInstalment > 0) {
+        const totalCustomExceptLast = params.monthlyInstalment * (params.monthDuration - 1);
+        if (totalCustomExceptLast >= remainingBalance) {
+          throw new Error("Custom monthly installment is too large for the remaining balance and duration.");
+        }
+        monthlyInstalment = params.monthlyInstalment;
+      } else {
+        monthlyInstalment = params.monthDuration > 0
+          ? Math.floor(remainingBalance / params.monthDuration)
+          : 0;
       }
-      monthlyInstalment = params.monthlyInstalment;
-    } else {
-      monthlyInstalment = params.monthDuration > 0
-        ? Math.floor(remainingBalance / params.monthDuration)
-        : 0;
     }
 
     const schedule: InstalmentDueDate[] = [];
@@ -1182,17 +1199,18 @@ export function useQistStore() {
 
     for (let i = 1; i <= params.monthDuration; i++) {
       const dueDate = addMonthsClamped(start, i, params.dueDayOfMonth);
-      const amount =
-        i === params.monthDuration
-          ? remainingBalance - monthlyInstalment * (params.monthDuration - 1)
-          : monthlyInstalment;
+      const amount = remainingBalance === 0
+        ? 0
+        : (i === params.monthDuration
+            ? remainingBalance - monthlyInstalment * (params.monthDuration - 1)
+            : monthlyInstalment);
 
       schedule.push({
         installmentNumber: i,
         dueDate: toLocalISODate(dueDate),
         amount: Math.max(0, amount),
         paidAmount: 0,
-        status: 'pending',
+        status: remainingBalance === 0 ? 'paid' : 'pending',
       });
     }
 
@@ -1233,7 +1251,7 @@ export function useQistStore() {
       monthlyInstalment,
       dueDayOfMonth: params.dueDayOfMonth,
       startDate: params.deliveryDate || params.startDate || todayLocal(),
-      status: 'active',
+      status: remainingBalance === 0 ? 'completed' : 'active',
       schedule,
       notes: params.notes,
       createdAt: todayLocal(),
@@ -1348,6 +1366,14 @@ export function useQistStore() {
       );
     }
 
+    if (target.downPayment > 0) {
+      setCashbook((prev) =>
+        prev.filter(
+          (c) => !(c.referenceNumber === target.agreementNumber && c.category === 'Down Payment')
+        )
+      );
+    }
+
     setAgreements((prev) => prev.filter((a) => a.id !== id));
 
     logActivity(
@@ -1403,6 +1429,10 @@ export function useQistStore() {
     const lateFee = Math.max(0, params.lateFee || 0);
     const discount = Math.max(0, params.discount || 0);
 
+    if (discount > params.amountPaid + lateFee) {
+      throw new Error("Discount cannot exceed payment amount plus late fee.");
+    }
+
     // Multi-slot auto-allocation for overpayment across unpaid instalments
     let unallocatedAmount = params.amountPaid;
     const affectedInstallmentNumbers: number[] = [];
@@ -1429,6 +1459,13 @@ export function useQistStore() {
       affectedInstallmentNumbers.push(slot.installmentNumber);
       unallocatedAmount -= allocation;
     }
+
+    const allocationsList: { installmentNumber: number; amount: number }[] = [];
+    slotAllocationMap.forEach((amount, installmentNumber) => {
+      if (amount > 0) {
+        allocationsList.push({ installmentNumber, amount });
+      }
+    });
 
     const updatedSchedule = agreement.schedule.map((slot) => {
       const allocation = slotAllocationMap.get(slot.installmentNumber);
@@ -1471,6 +1508,7 @@ export function useQistStore() {
       customerId: agreement.customerId,
       customerName: customer?.fullName || 'Customer',
       installmentNumbers: affectedInstallmentNumbers.length > 0 ? affectedInstallmentNumbers : [params.installmentNumber],
+      allocations: allocationsList,
       amountPaid: params.amountPaid,
       lateFee,
       discount,
@@ -1537,21 +1575,44 @@ export function useQistStore() {
     const restoredBalance = agreement.remainingBalance + targetPayment.amountPaid;
     let remainingToDeduct = targetPayment.amountPaid;
 
-    const restoredSchedule = agreement.schedule.map((slot) => {
-      if (targetPayment.installmentNumbers.includes(slot.installmentNumber) && remainingToDeduct > 0) {
-        const deductFromSlot = Math.min(remainingToDeduct, slot.paidAmount);
-        const newPaidAmount = Math.max(0, slot.paidAmount - deductFromSlot);
-        remainingToDeduct -= deductFromSlot;
+    const allocationMap = new Map<number, number>();
+    if (targetPayment.allocations && targetPayment.allocations.length > 0) {
+      targetPayment.allocations.forEach((a) => {
+        allocationMap.set(a.installmentNumber, a.amount);
+      });
+    }
 
-        // Restore prior receipt details if previous payments contributed to this slot
+    const restoredSchedule = agreement.schedule.map((slot) => {
+      let deductFromSlot = 0;
+      if (allocationMap.has(slot.installmentNumber)) {
+        deductFromSlot = allocationMap.get(slot.installmentNumber) || 0;
+      } else if (targetPayment.installmentNumbers.includes(slot.installmentNumber) && remainingToDeduct > 0) {
+        deductFromSlot = Math.min(remainingToDeduct, slot.paidAmount);
+        remainingToDeduct -= deductFromSlot;
+      }
+
+      if (deductFromSlot > 0) {
+        const newPaidAmount = Math.max(0, slot.paidAmount - deductFromSlot);
         const priorPayment = otherValidPayments
           .filter((p) => p.installmentNumbers.includes(slot.installmentNumber))
           .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
 
+        const isDuePast = parseLocalDate(slot.dueDate).getTime() < parseLocalDate(todayLocal()).getTime();
+        let newStatus: InstalmentDueDate['status'] = 'pending';
+        if (newPaidAmount >= slot.amount) {
+          newStatus = 'paid';
+        } else if (newPaidAmount > 0) {
+          newStatus = 'partially_paid';
+        } else if (isDuePast) {
+          newStatus = 'overdue';
+        } else {
+          newStatus = 'pending';
+        }
+
         return {
           ...slot,
           paidAmount: newPaidAmount,
-          status: (newPaidAmount === 0 ? 'pending' : 'partially_paid') as InstalmentDueDate['status'],
+          status: newStatus,
           paidDate: newPaidAmount > 0 ? (priorPayment?.date || slot.paidDate) : undefined,
           receiptNumber: newPaidAmount > 0 ? (priorPayment?.receiptNumber || slot.receiptNumber) : undefined,
         };
@@ -1690,6 +1751,7 @@ export function useQistStore() {
     }
 
     const backupData = {
+      schemaVersion: '4.0',
       version: '4.0-SALTED-RBAC',
       exportedAt: new Date().toISOString(),
       hasRealAdmin,
@@ -1710,8 +1772,8 @@ export function useQistStore() {
 
     const rawJson = JSON.stringify(backupData, null, 2);
 
-    if (encryptionPassword && encryptionPassword.trim()) {
-      const encrypted = await encryptBackup(rawJson, encryptionPassword.trim());
+    if (encryptionPassword) {
+      const encrypted = await encryptBackup(rawJson, encryptionPassword);
       logActivity('EXPORT', 'System', 'Exported Password-Encrypted AES-GCM Database Backup');
       return encrypted;
     }
@@ -1730,12 +1792,13 @@ export function useQistStore() {
       throw new Error("Only Admin can import/restore database backups.");
     }
 
-    // Phase 2.3: Admin re-entry of password if provided
-    if (adminConfirmPassword) {
-      const isAuth = await verifyPassword(adminConfirmPassword, currentUser.salt, currentUser.passwordHash);
-      if (!isAuth) {
-        throw new Error("Incorrect Admin confirmation password. Restore aborted.");
-      }
+    // Require Admin password confirmation
+    if (!adminConfirmPassword) {
+      throw new Error("Admin confirmation password is required to restore database backup.");
+    }
+    const isAuth = await verifyPassword(adminConfirmPassword, currentUser.salt, currentUser.passwordHash);
+    if (!isAuth) {
+      throw new Error("Incorrect Admin confirmation password. Restore aborted.");
     }
 
     try {
@@ -1751,7 +1814,7 @@ export function useQistStore() {
 
       const data = JSON.parse(jsonStringToParse);
 
-      // Phase 2.3: All-or-nothing validation of required keys
+      // Validation of required JSON object & collections
       if (!data || typeof data !== 'object') {
         throw new Error("Invalid backup data: content is not a valid JSON object.");
       }
@@ -1763,27 +1826,70 @@ export function useQistStore() {
         }
       }
 
-      // Pre-restore snapshot backup
+      // Record shape validation (Item 4)
+      if (Array.isArray(data.agreements)) {
+        for (const a of data.agreements) {
+          if (!a || typeof a !== 'object' || typeof a.id !== 'string' || !Array.isArray(a.schedule)) {
+            throw new Error("Corrupted or malformed backup: agreement records are missing required schedule or ID.");
+          }
+          for (const s of a.schedule) {
+            if (!s || typeof s.installmentNumber !== 'number' || typeof s.amount !== 'number' || typeof s.dueDate !== 'string') {
+              throw new Error("Corrupted or malformed backup: agreement schedule contains invalid slot entries.");
+            }
+          }
+        }
+      }
+
+      if (Array.isArray(data.customers)) {
+        for (const c of data.customers) {
+          if (!c || typeof c !== 'object' || typeof c.id !== 'string' || typeof c.fullName !== 'string') {
+            throw new Error("Corrupted or malformed backup: customer records are missing required fields.");
+          }
+        }
+      }
+
+      // Pre-restore snapshot backup (Abort if quota exceeded!)
       try {
         localStorage.setItem(
           'qistflow_pre_restore_snapshot',
           JSON.stringify({
             timestamp: new Date().toISOString(),
-            settings,
-            users,
             customers,
-            categories,
             stock,
             agreements,
             payments,
             cashbook,
           })
         );
-      } catch {
-        // Continue if snapshot storage fails
+      } catch (err) {
+        throw new Error("Cannot create pre-restore safety backup snapshot (localStorage quota exceeded). Restore aborted for safety.");
       }
 
-      // Apply all-or-nothing in a single state transition
+      // Item 2: Legacy date recompute on imported agreements without schemaVersion or < '4.0'
+      const importedAgreements: Agreement[] = Array.isArray(data.agreements) ? data.agreements : [];
+      const needsDateCorrection = !data.schemaVersion || data.schemaVersion < '4.0';
+
+      const correctedAgreements = importedAgreements.map((agr) => {
+        if (!needsDateCorrection || !Array.isArray(agr.schedule)) return agr;
+        const start = parseLocalDate(agr.deliveryDate || agr.startDate || todayLocal());
+        const dueDay = agr.dueDayOfMonth || 10;
+
+        const fixedSchedule = agr.schedule.map((slot) => {
+          if (slot.status === 'paid') return slot; // Never touch paid slots!
+          const recomputedDue = addMonthsClamped(start, slot.installmentNumber, dueDay);
+          return {
+            ...slot,
+            dueDate: toLocalISODate(recomputedDue),
+          };
+        });
+
+        return {
+          ...agr,
+          schedule: fixedSchedule,
+        };
+      });
+
+      // Apply all-or-nothing state transitions
       if (data.settings) setSettings(data.settings);
       if (Array.isArray(data.users)) setUsers(data.users);
       if (data.hasRealAdmin !== undefined) setHasRealAdmin(data.hasRealAdmin);
@@ -1800,7 +1906,7 @@ export function useQistStore() {
       setStock(Array.isArray(data.stock) ? data.stock : []);
       setStockReceipts(Array.isArray(data.stockReceipts) ? data.stockReceipts : []);
       setStockMovements(Array.isArray(data.stockMovements) ? data.stockMovements : []);
-      setAgreements(Array.isArray(data.agreements) ? data.agreements : []);
+      setAgreements(correctedAgreements);
       setPayments(Array.isArray(data.payments) ? data.payments : []);
       setReversals(Array.isArray(data.reversals) ? data.reversals : []);
       setCashbook(Array.isArray(data.cashbook) ? data.cashbook : []);

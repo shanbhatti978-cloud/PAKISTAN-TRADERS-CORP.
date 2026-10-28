@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx';
 import {
   StockItem,
   StockReceipt,
@@ -42,7 +41,7 @@ interface ExportReportParams {
   settings: ShopSettings;
 }
 
-export const generateExcelAuditReport = ({
+export const generateExcelAuditReport = async ({
   reportType,
   startDate,
   endDate,
@@ -56,6 +55,7 @@ export const generateExcelAuditReport = ({
   auditLogs,
   settings,
 }: ExportReportParams) => {
+  const XLSX = await import('xlsx');
   const wb = XLSX.utils.book_new();
 
   // Common Header Information

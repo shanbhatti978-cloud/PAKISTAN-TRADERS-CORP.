@@ -9,6 +9,33 @@ interface PinLockScreenProps {
   onUpdateSettings?: (updater: (prev: ShopSettings) => ShopSettings) => void;
 }
 
+const LOCKOUT_KEY = 'qistflow_pin_lockout_v1';
+
+const getStoredLockout = (): { failedAttempts: number; lockoutUntil: number } => {
+  try {
+    const raw = localStorage.getItem(LOCKOUT_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed.failedAttempts === 'number' && typeof parsed.lockoutUntil === 'number') {
+        return parsed;
+      }
+    }
+  } catch {}
+  return { failedAttempts: 0, lockoutUntil: 0 };
+};
+
+const saveLockout = (failedAttempts: number, lockoutUntil: number) => {
+  try {
+    localStorage.setItem(LOCKOUT_KEY, JSON.stringify({ failedAttempts, lockoutUntil }));
+  } catch {}
+};
+
+const clearLockout = () => {
+  try {
+    localStorage.removeItem(LOCKOUT_KEY);
+  } catch {}
+};
+
 export const PinLockScreen: React.FC<PinLockScreenProps> = ({
   settings,
   onUnlock,
@@ -23,6 +50,19 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
   // Is current PIN known to be factory default?
   const isFactoryDefault = settings.pinCode === '1234' || (!settings.pinCode && !settings.pinHash);
 
+  // Read stored lockout state on mount and survive app restarts
+  useEffect(() => {
+    const stored = getStoredLockout();
+    if (stored.lockoutUntil > Date.now()) {
+      const remainingSecs = Math.ceil((stored.lockoutUntil - Date.now()) / 1000);
+      setLockoutRemaining(remainingSecs);
+      setFailedAttempts(stored.failedAttempts);
+      setErrorMsg(`Security lockout active. Please wait ${remainingSecs}s.`);
+    } else if (stored.failedAttempts > 0) {
+      setFailedAttempts(stored.failedAttempts);
+    }
+  }, []);
+
   useEffect(() => {
     if (lockoutRemaining <= 0) return;
     const timer = setInterval(() => {
@@ -31,7 +71,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
           clearInterval(timer);
           return 0;
         }
-        return prev - 1;
+          return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timer);
@@ -64,7 +104,8 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
       }
 
       if (isMatch) {
-        // Reset counters
+        // Clear stored lockout on success
+        clearLockout();
         setFailedAttempts(0);
         setErrorMsg('');
 
@@ -91,11 +132,23 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
         setFailedAttempts(newAttempts);
         setPinInput('');
 
-        if (newAttempts >= 5) {
-          setLockoutRemaining(30);
-          setErrorMsg('Security lockout: 5 incorrect attempts. Please wait 30 seconds.');
+        let lockDurationSecs = 0;
+        if (newAttempts >= 15) {
+          lockDurationSecs = 600; // 10 minutes
+        } else if (newAttempts >= 10) {
+          lockDurationSecs = 120; // 2 minutes
+        } else if (newAttempts >= 5) {
+          lockDurationSecs = 30; // 30 seconds
+        }
+
+        if (lockDurationSecs > 0) {
+          const lockoutUntil = Date.now() + lockDurationSecs * 1000;
+          saveLockout(newAttempts, lockoutUntil);
+          setLockoutRemaining(lockDurationSecs);
+          setErrorMsg(`Security lockout: ${newAttempts} incorrect attempts. Please wait ${lockDurationSecs} seconds.`);
         } else {
-          setErrorMsg(`Incorrect PIN code. (${5 - newAttempts} attempt(s) remaining)`);
+          saveLockout(newAttempts, 0);
+          setErrorMsg(`Incorrect PIN code. (${5 - (newAttempts % 5)} attempt(s) remaining before lockout)`);
         }
       }
     } catch (err: any) {
@@ -120,7 +173,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
 
         <div>
           <h2 className="text-xl font-extrabold text-text font-heading tracking-tight uppercase">
-            {settings.shopName || 'PAKISTAN TRADER CORPORATION'}
+            {settings.shopName || 'Pakistan Trader Corporation'}
           </h2>
           <p className="text-xs text-primary font-semibold mt-1">
             Instalment & Inventory Control Protected
@@ -148,29 +201,31 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
           {lockoutRemaining > 0 && (
             <div className="p-3 rounded-2xl bg-danger-container text-on-danger-container border border-border text-xs font-bold flex items-center justify-center gap-2">
               <ShieldAlert className="w-4 h-4 shrink-0 text-danger" />
-              <span>Locked: Try again in {lockoutRemaining}s</span>
+              <span>
+                Lockout Active: Wait <strong className="font-mono">{lockoutRemaining}s</strong>
+              </span>
             </div>
           )}
 
-          {errorMsg && lockoutRemaining === 0 && (
-            <p className="text-xs text-danger font-semibold flex items-center justify-center gap-1.5">
-              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          {errorMsg && lockoutRemaining <= 0 && (
+            <div className="p-2.5 rounded-xl bg-danger/10 text-danger border border-danger/20 text-xs font-medium flex items-center justify-center gap-1.5">
+              <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
-            </p>
+            </div>
           )}
 
           <button
             type="submit"
-            disabled={lockoutRemaining > 0 || isVerifying || pinInput.length !== 4}
-            className="w-full m3-btn-base m3-btn-filled text-xs py-3 rounded-2xl shadow-2 font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={lockoutRemaining > 0 || pinInput.length !== 4 || isVerifying}
+            className="m3-btn-base m3-btn-filled w-full py-3 text-body-sm font-bold disabled:opacity-50"
           >
-            {isVerifying ? 'Verifying PIN...' : 'Unlock Application'}
+            {isVerifying ? 'Verifying...' : 'Unlock System'}
           </button>
         </form>
 
         {isFactoryDefault && (
-          <div className="p-2.5 rounded-xl bg-warning-container/20 border border-warning/30 text-[11px] text-warning font-medium">
-            Default PIN is 1234. For security, please change your PIN in Settings after unlocking.
+          <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+            Factory Default PIN is <strong className="font-mono">1234</strong>. Please change it in Settings under Shop Profile.
           </div>
         )}
       </div>

@@ -9,6 +9,9 @@ import {
   AlertCircle,
   ArrowRight,
   ShieldAlert,
+  Phone,
+  MapPin,
+  FileText,
 } from 'lucide-react';
 
 interface FirstRunSetupScreenProps {
@@ -17,6 +20,11 @@ interface FirstRunSetupScreenProps {
     username: string;
     password: string;
     shopName?: string;
+    proprietorName?: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    regNumber?: string;
     keepDemoData?: boolean;
   }) => Promise<{ success: boolean; message: string }> | { success: boolean; message: string };
   isLight?: boolean;
@@ -29,7 +37,11 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [shopName, setShopName] = useState('');
+  const [shopName, setShopName] = useState('Pakistan Trader Corporation');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [regNumber, setRegNumber] = useState('');
   const [keepDemoData, setKeepDemoData] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -71,7 +83,12 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
         fullName: fullName.trim(),
         username: username.trim().toLowerCase(),
         password,
-        shopName: shopName.trim() || undefined,
+        shopName: shopName.trim() || 'Pakistan Trader Corporation',
+        proprietorName: fullName.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        city: city.trim(),
+        regNumber: regNumber.trim(),
         keepDemoData,
       });
 
@@ -93,7 +110,7 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
         paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))',
       }}
     >
-      <div className="w-full max-w-lg rounded-3xl border border-border shadow-3 p-6 sm:p-8 space-y-6 relative overflow-hidden backdrop-blur-xl bg-surface">
+      <div className="w-full max-w-lg rounded-3xl border border-border shadow-3 p-6 sm:p-8 space-y-6 relative overflow-hidden backdrop-blur-xl bg-surface my-auto">
         
         {/* Ambient Top Glow */}
         <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-24 bg-gradient-to-b from-primary/20 to-transparent blur-2xl pointer-events-none" />
@@ -110,37 +127,81 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
           </h1>
 
           <p className="text-caption font-medium text-text-muted max-w-md mx-auto">
-            Set up your permanent Master Admin credentials. Creating your account permanently deletes all default demo credentials from the system.
+            Set up your permanent Master Admin credentials and enterprise business profile.
           </p>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
           
-          {/* Shop Name */}
-          <div className="space-y-1.5">
-            <label className="text-body-sm font-bold text-text flex items-center gap-1.5">
-              <Building2 className="w-4 h-4 text-primary" />
-              <span>Shop / Enterprise Name (Optional)</span>
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Pakistan Traders Corp"
-              value={shopName}
-              onChange={(e) => setShopName(e.target.value)}
-              className="m3-input text-body"
-            />
+          {/* Shop Name & Contact */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-body-sm font-bold text-text flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-primary" />
+                <span>Shop / Enterprise Name *</span>
+              </label>
+              <input
+                type="text"
+                placeholder="Pakistan Trader Corporation"
+                value={shopName}
+                onChange={(e) => setShopName(e.target.value)}
+                className="m3-input text-body"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-body-sm font-bold text-text flex items-center gap-1.5">
+                <Phone className="w-4 h-4 text-primary" />
+                <span>Shop Phone / Contact</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. +92 300 1234567"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="m3-input text-body font-mono"
+              />
+            </div>
+          </div>
+
+          {/* Location & NTN */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-body-sm font-bold text-text flex items-center gap-1.5">
+                <MapPin className="w-4 h-4 text-primary" />
+                <span>Shop Address</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Main Market, Hall Road"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                className="m3-input text-body"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-body-sm font-bold text-text">City</label>
+              <input
+                type="text"
+                placeholder="Lahore"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                className="m3-input text-body"
+              />
+            </div>
           </div>
 
           {/* Full Name & Username */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-body-sm font-bold text-text">
-                Full Name *
+                Proprietor / Owner Full Name *
               </label>
               <input
                 type="text"
-                placeholder="Proprietor Name"
+                placeholder="e.g. Muhammad Imran"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="m3-input text-body"
@@ -181,7 +242,7 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text p-1"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -203,75 +264,43 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
             </div>
           </div>
 
-          {/* Password Strength Checklist */}
-          <div className="p-3.5 rounded-2xl border text-caption space-y-2 bg-surface-2 border-border">
-            <div className="text-caption font-bold uppercase tracking-wider text-text-muted">
-              Security Requirements
+          {/* Password Strength Rules Checklist */}
+          <div className="p-3 rounded-2xl bg-surface-2 border border-border text-caption font-medium space-y-1">
+            <div className="flex items-center gap-2">
+              {hasMinLen ? <CheckCircle2 className="w-3.5 h-3.5 text-success shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 text-text-muted shrink-0" />}
+              <span className={hasMinLen ? 'text-success font-bold' : 'text-text-muted'}>At least 8 characters long</span>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-caption font-semibold">
-              <div className={`flex items-center gap-1.5 ${hasMinLen ? 'text-success font-bold' : 'text-text-muted'}`}>
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>At least 8 characters</span>
-              </div>
-
-              <div className={`flex items-center gap-1.5 ${hasDigit ? 'text-success font-bold' : 'text-text-muted'}`}>
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>At least 1 digit (0-9)</span>
-              </div>
-
-              <div className={`col-span-2 flex items-center gap-1.5 ${passwordsMatch ? 'text-success font-bold' : 'text-text-muted'}`}>
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>Passwords match</span>
-              </div>
+            <div className="flex items-center gap-2">
+              {hasDigit ? <CheckCircle2 className="w-3.5 h-3.5 text-success shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 text-text-muted shrink-0" />}
+              <span className={hasDigit ? 'text-success font-bold' : 'text-text-muted'}>At least one numeric digit (0-9)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {passwordsMatch ? <CheckCircle2 className="w-3.5 h-3.5 text-success shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 text-text-muted shrink-0" />}
+              <span className={passwordsMatch ? 'text-success font-bold' : 'text-text-muted'}>Passwords match</span>
             </div>
           </div>
 
-          {/* Initial Business Data Option */}
-          <div className="p-3.5 rounded-2xl border text-caption space-y-2 bg-surface-2 border-border">
-            <div className="text-caption font-bold uppercase tracking-wider text-text-muted">
-              Initial Business Data
-            </div>
-            <div className="space-y-2">
-              <label className="flex items-start gap-2.5 cursor-pointer">
-                <input
-                  type="radio"
-                  name="keepDemoData"
-                  checked={!keepDemoData}
-                  onChange={() => setKeepDemoData(false)}
-                  className="mt-0.5"
-                />
-                <div>
-                  <div className="font-bold text-text">Start with empty database (Recommended for real shop)</div>
-                  <div className="text-[11px] text-text-muted">Starts with zero sample customers, agreements, and stock items. Ready for production.</div>
-                </div>
-              </label>
-
-              <label className="flex items-start gap-2.5 cursor-pointer">
-                <input
-                  type="radio"
-                  name="keepDemoData"
-                  checked={keepDemoData}
-                  onChange={() => setKeepDemoData(true)}
-                  className="mt-0.5"
-                />
-                <div>
-                  <div className="font-bold text-text">Keep sample demo records</div>
-                  <div className="text-[11px] text-text-muted">Retains pre-loaded sample stock and customer agreements for practice and testing.</div>
-                </div>
-              </label>
-            </div>
+          {/* Dataset Option */}
+          <div className="p-4 rounded-2xl border border-border bg-surface-2 space-y-2">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={keepDemoData}
+                onChange={(e) => setKeepDemoData(e.target.checked)}
+                className="w-4 h-4 rounded text-primary focus:ring-primary mt-0.5"
+              />
+              <div className="space-y-0.5 text-body-sm">
+                <span className="font-bold text-text block">Keep Pakistan Traders Corp sample demo dataset</span>
+                <p className="text-caption text-text-muted leading-snug">
+                  Uncheck (recommended for real shop) to start with a clean empty database.
+                </p>
+              </div>
+            </label>
           </div>
 
-          {/* Security Notice Banner */}
-          <div className="p-3.5 rounded-2xl bg-warning-container text-on-warning-container border border-border text-caption font-semibold flex items-start gap-2.5">
-            <ShieldAlert className="w-4 h-4 text-warning shrink-0 mt-0.5" />
-            <p className="leading-snug">
-              Creating your Master Admin account establishes your permanent administrator credentials. All default demo accounts will be permanently deactivated.
-            </p>
-          </div>
-
+          {/* Error Notice */}
           {errorMsg && (
-            <div className="p-3.5 rounded-2xl bg-danger-container text-on-danger-container border border-border text-caption font-bold flex items-center gap-2 animate-in shake">
+            <div className="p-3 rounded-2xl bg-danger/10 border border-danger/20 text-danger text-body-sm font-bold flex items-center gap-2 animate-in fade-in">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
@@ -280,16 +309,13 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={!isPasswordValid || !fullName.trim() || !username.trim() || isSubmitting}
-            className="w-full m3-btn-base m3-btn-filled text-body-sm py-3.5 rounded-2xl shadow-2 font-bold flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!isPasswordValid || isSubmitting}
+            className="m3-btn-base m3-btn-filled w-full py-3.5 text-body font-bold flex items-center justify-center gap-2 shadow-2 disabled:opacity-50"
           >
-            <UserCheck className="w-4 h-4" />
-            <span>{isSubmitting ? 'Initializing Master Admin...' : 'Create Account & Initialize System'}</span>
-            <ArrowRight className="w-4 h-4" />
+            <span>{isSubmitting ? 'Creating Master Admin...' : 'Initialize Enterprise & Complete Setup'}</span>
+            <ArrowRight className="w-5 h-5" />
           </button>
-
         </form>
-
       </div>
     </div>
   );
