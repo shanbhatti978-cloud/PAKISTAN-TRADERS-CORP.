@@ -28,6 +28,7 @@ import { ShopSettings, AuditLog, User as UserType, UserRole, DrawerSidePreferenc
 import { M3_THEME_COLORS, normalizeThemeColor, M3ThemeColor } from '../theme/m3Theme';
 import { GLASS_THEMES, GlassThemeId, migrateColorScheme } from '../theme/glassThemes';
 import { PermissionManager } from '../utils/permissionManager';
+import { todayLocal } from '../utils/dates';
 
 interface SettingsViewProps {
   settings: ShopSettings;
@@ -42,8 +43,8 @@ interface SettingsViewProps {
   onUnlockUser?: (id: string) => void;
   onChangeOwnPassword?: (oldPass: string, newPass: string) => Promise<{ success: boolean; message: string }> | { success: boolean; message: string };
   onUpdateOwnDisplayName?: (fullName: string) => void;
-  onExportJSON: () => string;
-  onImportJSON: (jsonStr: string) => { success: boolean; error?: string };
+  onExportJSON: (encryptionPassword?: string) => Promise<string> | string;
+  onImportJSON: (jsonStr: string, decryptionPassword?: string, adminConfirmPassword?: string) => Promise<{ success: boolean; message?: string; error?: string }> | { success: boolean; message?: string; error?: string };
   onResetDemoData: () => void;
 }
 
@@ -101,6 +102,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     actionType: 'role' | 'disable' | 'reset';
     onConfirm: () => void;
   } | null>(null);
+
+  // Backup Export & Import State (Phase 2.3 & 2.4)
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportEncrypt, setExportEncrypt] = useState(false);
+  const [exportPassword, setExportPassword] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [pendingImportContent, setPendingImportContent] = useState('');
+  const [importDecryptionPassword, setImportDecryptionPassword] = useState('');
+  const [importAdminPassword, setImportAdminPassword] = useState('');
+  const [isEncryptedImport, setIsEncryptedImport] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+
+  const [lastBackupDate, setLastBackupDate] = useState<string | null>(() =>
+    localStorage.getItem('qistflow_last_backup_date')
+  );
 
   const showStatus = (type: 'success' | 'error', message: string) => {
     setStatusToast({ type, message });
@@ -225,15 +243,37 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  const handleDownloadBackup = () => {
-    const jsonStr = onExportJSON();
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `QistFlow_Backup_${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleOpenExportModal = () => {
+    setExportEncrypt(false);
+    setExportPassword('');
+    setShowExportModal(true);
+  };
+
+  const handleExecuteExport = async () => {
+    try {
+      setIsExporting(true);
+      if (exportEncrypt && !exportPassword.trim()) {
+        showStatus('error', 'Please enter an encryption password or uncheck encryption.');
+        return;
+      }
+      const jsonStr = await onExportJSON(exportEncrypt ? exportPassword.trim() : undefined);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `PakistanTraders_Backup_${exportEncrypt ? 'ENC_' : ''}${todayLocal()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      localStorage.setItem('qistflow_last_backup_date', todayLocal());
+      setLastBackupDate(todayLocal());
+      setShowExportModal(false);
+      setExportPassword('');
+      showStatus('success', 'Database backup successfully generated & downloaded!');
+    } catch (err: any) {
+      showStatus('error', err?.message || 'Failed to export backup.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -242,15 +282,47 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const content = event.target?.result as string;
-      const res = onImportJSON(content);
-      if (res.success) {
-        showStatus('success', 'Backup data successfully imported!');
-      } else {
-        showStatus('error', `Failed to import backup: ${res.error}`);
-      }
+      const content = (event.target?.result as string) || '';
+      const isEnc = content.includes('"version": "4.0-ENCRYPTED-AES-GCM"');
+      setPendingImportContent(content);
+      setIsEncryptedImport(isEnc);
+      setImportDecryptionPassword('');
+      setImportAdminPassword('');
+      setShowImportModal(true);
     };
     reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleExecuteImport = async () => {
+    if (!importAdminPassword.trim()) {
+      showStatus('error', 'Please enter your Admin password to authorize restoring database.');
+      return;
+    }
+    if (isEncryptedImport && !importDecryptionPassword.trim()) {
+      showStatus('error', 'Please enter the backup decryption password.');
+      return;
+    }
+
+    try {
+      setIsImporting(true);
+      const res = await onImportJSON(
+        pendingImportContent,
+        isEncryptedImport ? importDecryptionPassword.trim() : undefined,
+        importAdminPassword.trim()
+      );
+      if (res.success) {
+        showStatus('success', res.message || 'Backup successfully restored!');
+        setShowImportModal(false);
+        setPendingImportContent('');
+      } else {
+        showStatus('error', res.error || res.message || 'Failed to import backup.');
+      }
+    } catch (err: any) {
+      showStatus('error', err?.message || 'Restore failed.');
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   // Filter out demo accounts from the user management list
@@ -935,21 +1007,42 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               Offline Database Backup & Restore
             </h3>
             <p className="text-caption text-text-muted font-medium">
-              Your application operates completely offline without external server databases. Export backups regularly to preserve ledger entries and records.
+              Your application operates offline. Export backups regularly to preserve ledger entries and records safely.
             </p>
+
+            {/* Android Storage Notice & Periodic Backup Nudge */}
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-caption font-medium space-y-1">
+              <div className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                <ShieldAlert className="w-4 h-4 shrink-0" />
+                <span>Android OS Storage Preservation Reminder</span>
+              </div>
+              <p className="text-text-muted text-[11px] leading-relaxed">
+                On Android devices, device cleaner apps or OS cache cleanups can erase app localStorage. Save regular backups to Google Drive or external storage to prevent permanent data loss.
+              </p>
+              {lastBackupDate ? (
+                <div className="text-[11px] font-mono text-text-muted mt-1">
+                  Last backup exported: <span className="font-bold text-text">{lastBackupDate}</span>
+                </div>
+              ) : (
+                <div className="text-[11px] font-bold text-amber-600 dark:text-amber-400 mt-1">
+                  Notice: No backup has been downloaded yet on this device.
+                </div>
+              )}
+            </div>
 
             <div className="p-4 rounded-xl border space-y-3 bg-surface-2" style={{ borderColor: 'var(--theme-surface-border)' }}>
               <button
-                onClick={handleDownloadBackup}
+                type="button"
+                onClick={handleOpenExportModal}
                 className="m3-btn-base m3-btn-tonal w-full py-2.5 text-body-sm font-bold"
               >
                 <Download className="w-4 h-4" />
-                <span>Export JSON Database Backup</span>
+                <span>Export Secure Database Backup</span>
               </button>
 
               <label className="m3-btn-base m3-btn-outlined w-full py-2.5 cursor-pointer text-body-sm font-bold justify-center">
                 <Upload className="w-4 h-4" />
-                <span>Import JSON Backup File</span>
+                <span>Restore Database From Backup</span>
                 <input
                   type="file"
                   accept=".json"
@@ -968,10 +1061,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 Resets customers, agreements, and stock items back to initial Pakistan Trader Corp demo data.
               </p>
               <button
+                type="button"
                 onClick={() => {
-                  if (confirm('Are you sure you want to restore demo dataset? Current changes will be overwritten.')) {
-                    onResetDemoData();
-                  }
+                  setConfirmActionModal({
+                    title: 'Restore Demo Factory State',
+                    message:
+                      'Are you sure you want to restore the demo dataset? All current agreements, customers, stock, and ledger entries will be overwritten and you will be logged out.',
+                    actionType: 'reset',
+                    onConfirm: () => {
+                      onResetDemoData();
+                      setConfirmActionModal(null);
+                    },
+                  });
                 }}
                 className="m3-btn-base m3-btn-outlined text-body-sm font-bold py-1.5 text-danger border-danger/30"
               >
@@ -1186,6 +1287,168 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               >
                 Confirm
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EXPORT BACKUP */}
+      {showExportModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-surface border border-border rounded-3xl p-6 space-y-4 text-text shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-title font-bold flex items-center gap-2 font-heading">
+                <Download className="w-5 h-5 text-primary" />
+                Export Secure Backup
+              </h3>
+              <button onClick={() => setShowExportModal(false)} className="text-text-muted hover:text-text">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-body-sm">
+              <p className="text-text-muted font-medium">
+                Download a complete snapshot of Pakistan Trader Corp customers, agreements, payments, inventory, and cashbook.
+              </p>
+
+              <div className="p-3 rounded-xl bg-surface-2 border border-border space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={exportEncrypt}
+                    onChange={(e) => setExportEncrypt(e.target.checked)}
+                    className="w-4 h-4 rounded text-primary focus:ring-primary"
+                  />
+                  <div className="font-bold flex items-center gap-1.5">
+                    <Lock className="w-4 h-4 text-primary" />
+                    <span>Encrypt backup with password (Recommended)</span>
+                  </div>
+                </label>
+
+                {exportEncrypt && (
+                  <div className="space-y-1.5 pt-2 border-t border-border/60">
+                    <label className="block text-caption font-bold text-text-muted">
+                      Set Encryption Password
+                    </label>
+                    <input
+                      type="password"
+                      value={exportPassword}
+                      onChange={(e) => setExportPassword(e.target.value)}
+                      placeholder="Enter strong password to lock file..."
+                      className="m3-input text-body"
+                    />
+                    <p className="text-caption text-warning font-medium">
+                      Store this password safely. Encrypted backups cannot be decrypted without it.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowExportModal(false)}
+                  className="m3-btn-base m3-btn-outlined py-2 px-4 font-bold"
+                  disabled={isExporting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteExport}
+                  disabled={isExporting}
+                  className="m3-btn-base m3-btn-filled py-2 px-6 font-bold"
+                >
+                  {isExporting ? 'Generating...' : 'Download Backup File'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: RESTORE BACKUP */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-surface border border-border rounded-3xl p-6 space-y-4 text-text shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-title font-bold flex items-center gap-2 font-heading">
+                <Upload className="w-5 h-5 text-primary" />
+                Restore Database Backup
+              </h3>
+              <button
+                onClick={() => {
+                  setShowImportModal(false);
+                  setPendingImportContent('');
+                }}
+                className="text-text-muted hover:text-text"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-body-sm">
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-text-muted text-caption space-y-1">
+                <div className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                  <ShieldAlert className="w-4 h-4 shrink-0" />
+                  <span>Important Safety Notice</span>
+                </div>
+                <p>
+                  Restoring will overwrite current ledger, customers, and stock with the backup contents. An automatic safety snapshot is created before restoring.
+                </p>
+              </div>
+
+              {isEncryptedImport && (
+                <div className="space-y-1.5">
+                  <label className="block text-caption font-bold text-text-muted flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-primary" />
+                    File Decryption Password
+                  </label>
+                  <input
+                    type="password"
+                    value={importDecryptionPassword}
+                    onChange={(e) => setImportDecryptionPassword(e.target.value)}
+                    placeholder="Enter password used when exporting..."
+                    className="m3-input text-body"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="block text-caption font-bold text-text-muted flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5 text-primary" />
+                  Confirm Admin Password
+                </label>
+                <input
+                  type="password"
+                  value={importAdminPassword}
+                  onChange={(e) => setImportAdminPassword(e.target.value)}
+                  placeholder="Enter your current Admin password to authorize..."
+                  className="m3-input text-body"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setPendingImportContent('');
+                  }}
+                  className="m3-btn-base m3-btn-outlined py-2 px-4 font-bold"
+                  disabled={isImporting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteImport}
+                  disabled={isImporting}
+                  className="m3-btn-base m3-btn-filled py-2 px-6 font-bold bg-rose-600 hover:bg-rose-500"
+                >
+                  {isImporting ? 'Restoring...' : 'Authorize & Restore'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

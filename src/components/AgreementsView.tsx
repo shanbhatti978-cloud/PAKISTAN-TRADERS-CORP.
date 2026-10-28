@@ -23,6 +23,7 @@ import { Agreement, Customer, StockItem, ShopSettings, User } from '../types';
 import { generateAgreementContractPDF } from '../utils/pdfGenerator';
 import { formatDateDDMMYYYY } from '../utils/formatters';
 import { ExpandableSearch } from './ExpandableSearch';
+import { useAppActions } from '../context/AppActionsContext';
 
 interface AgreementsViewProps {
   agreements: Agreement[];
@@ -51,6 +52,7 @@ export const AgreementsView: React.FC<AgreementsViewProps> = ({
   onUpdateAgreement,
   onDeleteAgreement,
 }) => {
+  const actions = useAppActions();
   const isAdmin = currentUser?.role === 'ADMIN';
 
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed' | 'defaulter'>('all');
@@ -254,7 +256,7 @@ export const AgreementsView: React.FC<AgreementsViewProps> = ({
                           if (customer) {
                             generateAgreementContractPDF(agreement, customer, settings);
                           } else {
-                            alert('Customer details not found for this agreement.');
+                            actions.showToast('Customer profile details not found for this agreement.', 'error');
                           }
                         }}
                         className="m3-btn-base m3-btn-outlined text-body-sm py-2.5 px-3.5 font-bold"

@@ -33,6 +33,7 @@ import { NavTabId, NAV_ITEMS } from '../config/navigation';
 import { formatDateDDMMYYYY } from '../utils/formatters';
 import { useAppActions } from '../context/AppActionsContext';
 import { ExpandableSearch } from './ExpandableSearch';
+import { todayLocal } from '../utils/dates';
 
 interface HomeViewProps {
   agreements: Agreement[];
@@ -56,7 +57,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onNavigateTab,
 }) => {
   const { runAction } = useAppActions();
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = todayLocal();
   const [dueSearchQuery, setDueSearchQuery] = useState('');
 
   // 1. KPI Calculations

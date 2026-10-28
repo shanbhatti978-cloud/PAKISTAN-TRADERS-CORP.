@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import { Payment, Agreement, Customer, ShopSettings } from '../types';
 import { formatDateDDMMYYYY } from './formatters';
+import { todayLocal } from './dates';
 
 /**
  * Generate & Download Payment Receipt PDF
@@ -1192,6 +1193,6 @@ export function generateCustomerPaymentLedgerPDF(
 
   // Save document
   const safeCustomerCode = (customer.customerCode || customer.fullName).replace(/[^a-zA-Z0-9]/g, '_');
-  doc.save(`Customer_Ledger_${safeCustomerCode}_${new Date().toISOString().split('T')[0]}.pdf`);
+  doc.save(`Customer_Ledger_${safeCustomerCode}_${todayLocal()}.pdf`);
 }
 

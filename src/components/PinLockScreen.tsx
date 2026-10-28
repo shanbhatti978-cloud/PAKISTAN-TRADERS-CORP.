@@ -1,24 +1,107 @@
-import React, { useState } from 'react';
-import { Lock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Lock, AlertCircle, ShieldAlert } from 'lucide-react';
 import { ShopSettings } from '../types';
+import { hashPassword, verifyPassword, generateSecureSalt } from '../utils/activityLogger';
 
 interface PinLockScreenProps {
   settings: ShopSettings;
   onUnlock: () => void;
+  onUpdateSettings?: (updater: (prev: ShopSettings) => ShopSettings) => void;
 }
 
-export const PinLockScreen: React.FC<PinLockScreenProps> = ({ settings, onUnlock }) => {
+export const PinLockScreen: React.FC<PinLockScreenProps> = ({
+  settings,
+  onUnlock,
+  onUpdateSettings,
+}) => {
   const [pinInput, setPinInput] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutRemaining, setLockoutRemaining] = useState(0);
+  const [isVerifying, setIsVerifying] = useState(false);
 
-  const handleUnlockSubmit = (e: React.FormEvent) => {
+  // Is current PIN known to be factory default?
+  const isFactoryDefault = settings.pinCode === '1234' || (!settings.pinCode && !settings.pinHash);
+
+  useEffect(() => {
+    if (lockoutRemaining <= 0) return;
+    const timer = setInterval(() => {
+      setLockoutRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockoutRemaining]);
+
+  const handleUnlockSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput === settings.pinCode || pinInput === '1234') {
+    if (lockoutRemaining > 0 || isVerifying) return;
+
+    if (!pinInput || pinInput.length !== 4) {
+      setErrorMsg('Please enter a valid 4-digit PIN.');
+      return;
+    }
+
+    try {
+      setIsVerifying(true);
       setErrorMsg('');
-      onUnlock();
-    } else {
-      setErrorMsg('Incorrect PIN Code. Please try again.');
-      setPinInput('');
+
+      let isMatch = false;
+
+      // 1. Verify against salted hash if present
+      if (settings.pinHash && settings.pinSalt) {
+        isMatch = await verifyPassword(pinInput, settings.pinSalt, settings.pinHash);
+      } else if (settings.pinCode) {
+        // Plaintext legacy PIN
+        isMatch = pinInput === settings.pinCode;
+      } else {
+        // Fallback to factory default only if neither is configured
+        isMatch = pinInput === '1234';
+      }
+
+      if (isMatch) {
+        // Reset counters
+        setFailedAttempts(0);
+        setErrorMsg('');
+
+        // Migrate plaintext PIN to salted hash on first successful unlock
+        if (!settings.pinHash || settings.pinCode) {
+          try {
+            const newSalt = generateSecureSalt();
+            const newHash = await hashPassword(pinInput, newSalt);
+            onUpdateSettings?.((prev) => ({
+              ...prev,
+              pinHash: newHash,
+              pinSalt: newSalt,
+              pinCode: undefined, // remove plaintext PIN
+              isLocked: false,
+            }));
+          } catch {
+            // If migration fails, proceed to unlock
+          }
+        }
+
+        onUnlock();
+      } else {
+        const newAttempts = failedAttempts + 1;
+        setFailedAttempts(newAttempts);
+        setPinInput('');
+
+        if (newAttempts >= 5) {
+          setLockoutRemaining(30);
+          setErrorMsg('Security lockout: 5 incorrect attempts. Please wait 30 seconds.');
+        } else {
+          setErrorMsg(`Incorrect PIN code. (${5 - newAttempts} attempt(s) remaining)`);
+        }
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Verification failed. Please try again.');
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -51,30 +134,45 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({ settings, onUnlock
             </label>
             <input
               type="password"
+              inputMode="numeric"
               maxLength={4}
               autoFocus
+              disabled={lockoutRemaining > 0 || isVerifying}
               value={pinInput}
-              onChange={(e) => setPinInput(e.target.value)}
+              onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
               placeholder="••••"
-              className="w-full text-center py-3 bg-surface-input border border-border rounded-2xl text-2xl font-mono-tabular tracking-widest text-primary focus:outline-none focus:ring-2 focus:ring-focus-ring"
+              className="w-full text-center py-3 bg-surface-input border border-border rounded-2xl text-2xl font-mono-tabular tracking-widest text-primary focus:outline-none focus:ring-2 focus:ring-focus-ring disabled:opacity-50"
             />
           </div>
 
-          {errorMsg && (
-            <p className="text-xs text-danger font-semibold">{errorMsg}</p>
+          {lockoutRemaining > 0 && (
+            <div className="p-3 rounded-2xl bg-danger-container text-on-danger-container border border-border text-xs font-bold flex items-center justify-center gap-2">
+              <ShieldAlert className="w-4 h-4 shrink-0 text-danger" />
+              <span>Locked: Try again in {lockoutRemaining}s</span>
+            </div>
+          )}
+
+          {errorMsg && lockoutRemaining === 0 && (
+            <p className="text-xs text-danger font-semibold flex items-center justify-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>{errorMsg}</span>
+            </p>
           )}
 
           <button
             type="submit"
-            className="w-full m3-btn-base m3-btn-filled text-xs py-3 rounded-2xl shadow-2 font-bold"
+            disabled={lockoutRemaining > 0 || isVerifying || pinInput.length !== 4}
+            className="w-full m3-btn-base m3-btn-filled text-xs py-3 rounded-2xl shadow-2 font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Unlock Application
+            {isVerifying ? 'Verifying PIN...' : 'Unlock Application'}
           </button>
         </form>
 
-        <p className="text-[10px] text-text-subtle">
-          Default PIN is 1234 (Configurable in Settings)
-        </p>
+        {isFactoryDefault && (
+          <div className="p-2.5 rounded-xl bg-warning-container/20 border border-warning/30 text-[11px] text-warning font-medium">
+            Default PIN is 1234. For security, please change your PIN in Settings after unlocking.
+          </div>
+        )}
       </div>
     </div>
   );

@@ -14,6 +14,7 @@ import { ActivityLedgerEntry, LedgerActionType } from '../types';
 import { ActivityLogger } from '../utils/activityLogger';
 import { PermissionManager } from '../utils/permissionManager';
 import { ExpandableSearch } from './ExpandableSearch';
+import { todayLocal } from '../utils/dates';
 
 interface ActivityLedgerViewProps {
   entries: ActivityLedgerEntry[];
@@ -91,7 +92,7 @@ export const ActivityLedgerView: React.FC<ActivityLedgerViewProps> = ({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Activity_Ledger_Export_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `Activity_Ledger_Export_${todayLocal()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

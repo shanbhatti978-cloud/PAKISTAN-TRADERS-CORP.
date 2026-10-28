@@ -24,6 +24,7 @@ import { Agreement, Customer, Payment, ShopSettings, User } from '../types';
 import { formatDateDDMMYYYY } from '../utils/formatters';
 import { PermissionManager } from '../utils/permissionManager';
 import { ExpandableSearch } from './ExpandableSearch';
+import { todayLocal, parseLocalDate } from '../utils/dates';
 
 interface RecoveryViewProps {
   agreements: Agreement[];
@@ -56,8 +57,8 @@ export const RecoveryView: React.FC<RecoveryViewProps> = ({
   const [filterMode, setFilterMode] = useState<'overdue' | 'due_today' | 'upcoming' | 'all'>('overdue');
   const [sortOrder, setSortOrder] = useState<'soonest' | 'latest'>('soonest');
 
-  const todayStr = '2026-09-28';
-  const todayDate = new Date(todayStr);
+  const todayStr = todayLocal();
+  const todayDate = parseLocalDate(todayStr);
 
   const canReversePayments = currentUser ? PermissionManager.can(currentUser.role, 'REVERSE_PAYMENT') : false;
 
@@ -77,7 +78,7 @@ export const RecoveryView: React.FC<RecoveryViewProps> = ({
     agr.schedule.forEach((slot) => {
       if (slot.status === 'paid') return; // skip paid slots
 
-      const due = new Date(slot.dueDate);
+      const due = parseLocalDate(slot.dueDate);
       const isDueToday = slot.dueDate === todayStr;
       const daysLate = Math.floor((todayDate.getTime() - due.getTime()) / (1000 * 3600 * 24));
 
@@ -123,6 +124,19 @@ export const RecoveryView: React.FC<RecoveryViewProps> = ({
     const search = searchQuery.toLowerCase();
     return custName.includes(search) || receiptNum.includes(search) || p.date.includes(search);
   });
+
+  // Category counts and amounts for header summary cards
+  const overdueSlotsList = recoverySlots.filter((s) => s.daysLate > 0);
+  const dueTodaySlotsList = recoverySlots.filter((s) => s.isDueToday);
+  const upcomingSlotsList = recoverySlots.filter((s) => s.daysLate === 0 && !s.isDueToday);
+
+  const overdueCount = overdueSlotsList.length;
+  const dueTodayCount = dueTodaySlotsList.length;
+  const upcomingCount = upcomingSlotsList.length;
+
+  const overdueAmount = overdueSlotsList.reduce((sum, s) => sum + (s.slot.amount - s.slot.paidAmount), 0);
+  const dueTodayAmount = dueTodaySlotsList.reduce((sum, s) => sum + (s.slot.amount - s.slot.paidAmount), 0);
+  const upcomingAmount = upcomingSlotsList.reduce((sum, s) => sum + (s.slot.amount - s.slot.paidAmount), 0);
 
   const totalFilteredAmount = sortedSlots.reduce(
     (sum, item) => sum + (item.slot.amount - item.slot.paidAmount),
@@ -172,6 +186,80 @@ export const RecoveryView: React.FC<RecoveryViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Category Summary Header Cards */}
+      {activeTab === 'pending_schedule' && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <button
+            onClick={() => setFilterMode('overdue')}
+            className={`m3-card p-4 text-left transition-all border cursor-pointer hover:border-primary/50 flex items-center justify-between ${
+              filterMode === 'overdue' ? 'ring-2 ring-primary bg-danger-container/10 border-danger shadow-sm' : 'border-border'
+            }`}
+          >
+            <div>
+              <div className="text-caption font-bold uppercase text-danger flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4" />
+                <span>Overdue Category</span>
+              </div>
+              <div className="text-2xl font-extrabold font-mono-tabular text-text mt-1">
+                {overdueCount} <span className="text-xs font-normal text-text-muted">agreements</span>
+              </div>
+              <div className="text-caption text-text-muted font-mono-tabular mt-0.5">
+                {settings.currencySymbol} {overdueAmount.toLocaleString()}
+              </div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-danger-container text-on-danger-container">
+              <ShieldAlert className="w-5 h-5" />
+            </div>
+          </button>
+
+          <button
+            onClick={() => setFilterMode('due_today')}
+            className={`m3-card p-4 text-left transition-all border cursor-pointer hover:border-primary/50 flex items-center justify-between ${
+              filterMode === 'due_today' ? 'ring-2 ring-primary bg-warning-container/10 border-warning shadow-sm' : 'border-border'
+            }`}
+          >
+            <div>
+              <div className="text-caption font-bold uppercase text-warning flex items-center gap-1.5">
+                <Clock className="w-4 h-4" />
+                <span>Due Today Category</span>
+              </div>
+              <div className="text-2xl font-extrabold font-mono-tabular text-text mt-1">
+                {dueTodayCount} <span className="text-xs font-normal text-text-muted">agreements</span>
+              </div>
+              <div className="text-caption text-text-muted font-mono-tabular mt-0.5">
+                {settings.currencySymbol} {dueTodayAmount.toLocaleString()}
+              </div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-warning-container text-on-warning-container">
+              <Calendar className="w-5 h-5" />
+            </div>
+          </button>
+
+          <button
+            onClick={() => setFilterMode('upcoming')}
+            className={`m3-card p-4 text-left transition-all border cursor-pointer hover:border-primary/50 flex items-center justify-between ${
+              filterMode === 'upcoming' ? 'ring-2 ring-primary bg-primary-container/10 border-primary shadow-sm' : 'border-border'
+            }`}
+          >
+            <div>
+              <div className="text-caption font-bold uppercase text-primary flex items-center gap-1.5">
+                <ArrowUpRight className="w-4 h-4" />
+                <span>Upcoming Category</span>
+              </div>
+              <div className="text-2xl font-extrabold font-mono-tabular text-text mt-1">
+                {upcomingCount} <span className="text-xs font-normal text-text-muted">agreements</span>
+              </div>
+              <div className="text-caption text-text-muted font-mono-tabular mt-0.5">
+                {settings.currencySymbol} {upcomingAmount.toLocaleString()}
+              </div>
+            </div>
+            <div className="p-2.5 rounded-xl bg-primary-container text-on-primary-container">
+              <Calendar className="w-5 h-5" />
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* Main Tab Bar & Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-border pb-2.5">
@@ -256,7 +344,7 @@ export const RecoveryView: React.FC<RecoveryViewProps> = ({
               }`}
             >
               <AlertCircle className="w-3.5 h-3.5" />
-              <span>Overdue Only ({recoverySlots.filter((s) => s.daysLate > 0).length})</span>
+              <span>Overdue ({overdueCount})</span>
             </button>
 
             <button
@@ -266,7 +354,7 @@ export const RecoveryView: React.FC<RecoveryViewProps> = ({
               }`}
             >
               <Clock className="w-3.5 h-3.5" />
-              <span>Due Today ({recoverySlots.filter((s) => s.isDueToday).length})</span>
+              <span>Due Today ({dueTodayCount})</span>
             </button>
 
             <button
@@ -275,7 +363,8 @@ export const RecoveryView: React.FC<RecoveryViewProps> = ({
                 filterMode === 'upcoming' ? 'bg-primary-container text-on-primary-container border-border font-bold' : 'text-text-muted border-transparent hover:text-text'
               }`}
             >
-              <span>Upcoming Schedule</span>
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Upcoming ({upcomingCount})</span>
             </button>
 
             <button

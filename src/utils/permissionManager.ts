@@ -5,17 +5,50 @@ import { UserRole, PermissionAction } from '../types';
  *
  * PERMISSION RULES:
  * 1. ADMIN:
- *    - CAN: Add items, change recovery amounts, add recoveries, change agreements, add agreements, add related entries, view everything, export reports.
- *    - CANNOT: Modify Audit Report or any report (all reports are strictly read-only for EVERY role).
+ *    - CAN: All actions (including user management, backup restore, database reset, item management).
+ *    - CANNOT: Modify Audit Report (audit reports are strictly read-only for EVERY role).
  *
  * 2. SUPERVISOR (add-only):
- *    - CAN: Add recoveries, add agreements, add related entries, view everything, export reports.
- *    - CANNOT: Edit or delete existing records, add items, change recovery amounts, change agreements, or modify reports.
+ *    - CAN: Add recoveries, add agreements, add related entries, view screens/reports, export reports.
+ *    - CANNOT: Add items, edit items, delete items, change recovery amounts, change agreements,
+ *              delete agreements, reverse payments, manage users, restore backup, reset database, modify audit report.
  *
  * 3. VIEWER (read-only):
- *    - CAN: View reports, audit report, and all data; export reports.
- *    - CANNOT: Add, edit, or delete anything.
+ *    - CAN: View screens/reports, export reports.
+ *    - CANNOT: Add, edit, delete, modify, restore, or reset anything.
  */
+
+export const ROLE_PERMISSIONS: Record<UserRole, ReadonlySet<PermissionAction>> = {
+  ADMIN: new Set<PermissionAction>([
+    'VIEW_SCREENS_REPORTS',
+    'ADD_ITEM',
+    'EDIT_ITEM',
+    'DELETE_ITEM',
+    'CHANGE_RECOVERY_AMOUNT',
+    'ADD_RECOVERY',
+    'CHANGE_AGREEMENT',
+    'DELETE_AGREEMENT',
+    'ADD_AGREEMENT',
+    'ADD_RELATED_ENTRIES',
+    'REVERSE_PAYMENT',
+    'EXPORT_REPORTS',
+    'MANAGE_USERS',
+    'RESTORE_BACKUP',
+    'RESET_DATABASE',
+  ]),
+  SUPERVISOR: new Set<PermissionAction>([
+    'VIEW_SCREENS_REPORTS',
+    'ADD_RECOVERY',
+    'ADD_AGREEMENT',
+    'ADD_RELATED_ENTRIES',
+    'EXPORT_REPORTS',
+  ]),
+  VIEWER: new Set<PermissionAction>([
+    'VIEW_SCREENS_REPORTS',
+    'EXPORT_REPORTS',
+  ]),
+};
+
 export class PermissionManager {
   static can(role: UserRole, action: PermissionAction): boolean {
     // Audit Reports and Reports are strictly READ-ONLY for ALL roles without exception
@@ -23,44 +56,12 @@ export class PermissionManager {
       return false;
     }
 
-    switch (role) {
-      case 'ADMIN':
-        return true;
-
-      case 'SUPERVISOR':
-        switch (action) {
-          case 'VIEW_SCREENS_REPORTS':
-          case 'ADD_RECOVERY':
-          case 'ADD_AGREEMENT':
-          case 'ADD_RELATED_ENTRIES':
-          case 'ADD_ITEM':
-          case 'EXPORT_REPORTS':
-            return true;
-          case 'MANAGE_USERS':
-          case 'ADD_ITEM':
-          case 'EDIT_ITEM':
-          case 'DELETE_ITEM':
-          case 'CHANGE_RECOVERY_AMOUNT':
-          case 'CHANGE_AGREEMENT':
-          case 'DELETE_AGREEMENT':
-          case 'REVERSE_PAYMENT':
-            return false;
-          default:
-            return false;
-        }
-
-      case 'VIEWER':
-        switch (action) {
-          case 'VIEW_SCREENS_REPORTS':
-          case 'EXPORT_REPORTS':
-            return true;
-          default:
-            return false;
-        }
-
-      default:
-        return false;
+    const permissions = ROLE_PERMISSIONS[role];
+    if (!permissions) {
+      return false;
     }
+
+    return permissions.has(action);
   }
 
   static getRoleBadgeStyle(role: UserRole): { label: string; badgeClass: string; dotColor: string } {

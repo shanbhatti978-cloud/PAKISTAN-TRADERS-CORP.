@@ -17,6 +17,7 @@ import confetti from 'canvas-confetti';
 import { Agreement, Customer, ShopSettings, Payment } from '../types';
 import { generatePaymentReceiptPDF, generateThermalReceiptPDF } from '../utils/pdfGenerator';
 import { ListPicker } from './ListPicker';
+import { todayLocal } from '../utils/dates';
 
 interface PaymentModalProps {
   agreements: Agreement[];
@@ -123,28 +124,32 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       return;
     }
 
-    const newPayment = onRecordPayment({
-      agreementId: selectedAgreement.id,
-      installmentNumber: installmentNum,
-      amountPaid,
-      lateFee,
-      discount,
-      paymentMethod,
-      date: new Date().toISOString().split('T')[0],
-      collectorName,
-      notes,
-    });
-
-    setCompletedPayment(newPayment);
-
-    // Confetti celebration
     try {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 },
+      const newPayment = onRecordPayment({
+        agreementId: selectedAgreement.id,
+        installmentNumber: installmentNum,
+        amountPaid,
+        lateFee,
+        discount,
+        paymentMethod,
+        date: todayLocal(),
+        collectorName,
+        notes,
       });
-    } catch (err) {}
+
+      setCompletedPayment(newPayment);
+
+      // Confetti celebration
+      try {
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 },
+        });
+      } catch (err) {}
+    } catch (err: any) {
+      setValidationError(err?.message || 'Failed to record payment transaction.');
+    }
   };
 
   return (

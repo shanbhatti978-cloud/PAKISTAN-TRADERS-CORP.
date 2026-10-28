@@ -21,6 +21,8 @@ export interface Customer {
   guarantor2?: Guarantor;
   photoUrl?: string;
   notes?: string;
+  profession?: string;
+  monthlyIncome?: number;
   rating: CustomerRating;
   createdAt: string;
 }
@@ -185,7 +187,9 @@ export interface ShopSettings {
   city: string;
   regNumber: string;
   currencySymbol: string;
-  pinCode: string; // Default '1234'
+  pinCode?: string; // Default '1234'
+  pinHash?: string; // Salted hash of PIN
+  pinSalt?: string; // Cryptographic salt for PIN
   isLocked: boolean;
   themeMode?: 'dark' | 'light';
   colorScheme?: string;
@@ -227,7 +231,9 @@ export type PermissionAction =
   | 'MODIFY_AUDIT_REPORT'
   | 'REVERSE_PAYMENT'
   | 'EXPORT_REPORTS'
-  | 'MANAGE_USERS';
+  | 'MANAGE_USERS'
+  | 'RESTORE_BACKUP'
+  | 'RESET_DATABASE';
 
 export type LedgerActionType =
   | 'LOGIN'

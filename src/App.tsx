@@ -21,6 +21,7 @@ import { NavTabId, normalizeTabId } from './config/navigation';
 import { AppActionsProvider, useAppActions } from './context/AppActionsContext';
 import { AmbientBackground } from './components/AmbientBackground';
 import { useAndroidBackManager } from './utils/androidBackManager';
+import { todayLocal } from './utils/dates';
 
 // Lazy-loaded Views & Modals for bundle optimization
 const HomeView = lazy(() => import('./components/HomeView').then((m) => ({ default: m.HomeView })));
@@ -177,7 +178,7 @@ function MainAppLayout() {
   const lowStockCategories = getLowStockCategories(categories, stock);
   const lowStockCount = lowStockCategories.length;
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = todayLocal();
   const todayCollectionTotal = payments
     .filter((p) => p.date === todayStr)
     .reduce((sum, p) => sum + p.amountPaid, 0);
@@ -234,6 +235,7 @@ function MainAppLayout() {
         <PinLockScreen
           settings={settings}
           onUnlock={() => setSettings((prev) => ({ ...prev, isLocked: false }))}
+          onUpdateSettings={setSettings}
         />
       )}
 
@@ -477,6 +479,9 @@ function MainAppLayout() {
                 {activeTab === 'ai_assistant' && (
                   <AiAssistantView
                     settings={settings}
+                    customers={customers}
+                    agreements={agreements}
+                    payments={payments}
                   />
                 )}
 

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Customer, StockItem, ShopSettings, Agreement, CustomerRating } from '../types';
 import { ListPicker } from './ListPicker';
+import { todayLocal } from '../utils/dates';
 
 interface NewAgreementModalProps {
   customers: Customer[];
@@ -73,10 +74,10 @@ export const NewAgreementModal: React.FC<NewAgreementModalProps> = ({
   const defaultUnitCost = selectedStockItem?.unitCost || Math.round(defaultCash * 0.85);
 
   const [purchaseDate, setPurchaseDate] = useState<string>(
-    selectedStockItem?.purchaseDate || new Date().toISOString().split('T')[0]
+    selectedStockItem?.purchaseDate || todayLocal()
   );
   const [unitCost, setUnitCost] = useState<number>(defaultUnitCost);
-  const [deliveryDate, setDeliveryDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [deliveryDate, setDeliveryDate] = useState<string>(todayLocal());
   const [totalInstalmentPrice, setTotalInstalmentPrice] = useState<number>(
     selectedStockItem?.instalmentPrice || 42000
   );
@@ -177,25 +178,28 @@ export const NewAgreementModal: React.FC<NewAgreementModalProps> = ({
       return;
     }
 
-    onCreateAgreement({
-      customerId: selectedCustId,
-      itemId: selectedItemId,
-      cashPrice,
-      interestPercentage: 0,
-      markupAmount: shopProfitMargin,
-      unitCost,
-      purchaseDate,
-      deliveryDate,
-      totalInstalmentPrice,
-      downPayment,
-      monthDuration,
-      monthlyInstalment: finalMonthlyInstalment,
-      dueDayOfMonth,
-      startDate: deliveryDate,
-      notes,
-    });
-
-    onClose();
+    try {
+      onCreateAgreement({
+        customerId: selectedCustId,
+        itemId: selectedItemId,
+        cashPrice,
+        interestPercentage: 0,
+        markupAmount: shopProfitMargin,
+        unitCost,
+        purchaseDate,
+        deliveryDate,
+        totalInstalmentPrice,
+        downPayment,
+        monthDuration,
+        monthlyInstalment: finalMonthlyInstalment,
+        dueDayOfMonth,
+        startDate: deliveryDate,
+        notes,
+      });
+      onClose();
+    } catch (err: any) {
+      setValidationError(err?.message || 'Failed to create agreement.');
+    }
   };
 
   const stepLabels = [

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { StockItem, ProductCategory, ShopSettings, CategoryItem } from '../types';
 import { ListPicker } from './ListPicker';
+import { todayLocal } from '../utils/dates';
 
 interface ReceiveStockModalProps {
   stock: StockItem[];
@@ -52,7 +53,7 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
 }) => {
   const [supplierName, setSupplierName] = useState('Atlas Honda / Haier Pakistan');
   const [purchaseRef, setPurchaseRef] = useState(`PO-${Date.now().toString().slice(-4)}`);
-  const [receivedDate, setReceivedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [receivedDate, setReceivedDate] = useState(todayLocal());
 
   const [selectedStockItemId, setSelectedStockItemId] = useState<string>('new');
   const [isNewModelMode, setIsNewModelMode] = useState<boolean>(stock.length === 0);
@@ -120,25 +121,29 @@ export const ReceiveStockModal: React.FC<ReceiveStockModalProps> = ({
       .map((s) => s.trim())
       .filter(Boolean);
 
-    onReceiveStock({
-      supplierName,
-      purchaseRef,
-      receivedDate,
-      stockItemId: isNewModelMode ? undefined : selectedStockItemId,
-      name,
-      category: category as ProductCategory,
-      brand,
-      model: model || name,
-      quantity,
-      unitCost,
-      cashPrice,
-      instalmentPrice,
-      minDownPayment,
-      serialNumbers,
-      counterLocation,
-    });
+    try {
+      onReceiveStock({
+        supplierName,
+        purchaseRef,
+        receivedDate,
+        stockItemId: isNewModelMode ? undefined : selectedStockItemId,
+        name,
+        category: category as ProductCategory,
+        brand,
+        model: model || name,
+        quantity,
+        unitCost,
+        cashPrice,
+        instalmentPrice,
+        minDownPayment,
+        serialNumbers,
+        counterLocation,
+      });
 
-    onClose();
+      onClose();
+    } catch (err: any) {
+      setValidationError(err?.message || 'Failed to receive stock delivery.');
+    }
   };
 
   return (

@@ -17,6 +17,7 @@ interface FirstRunSetupScreenProps {
     username: string;
     password: string;
     shopName?: string;
+    keepDemoData?: boolean;
   }) => Promise<{ success: boolean; message: string }> | { success: boolean; message: string };
   isLight?: boolean;
 }
@@ -29,6 +30,7 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [shopName, setShopName] = useState('');
+  const [keepDemoData, setKeepDemoData] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,6 +72,7 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
         username: username.trim().toLowerCase(),
         password,
         shopName: shopName.trim() || undefined,
+        keepDemoData,
       });
 
       if (!res.success) {
@@ -223,11 +226,47 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
             </div>
           </div>
 
+          {/* Initial Business Data Option */}
+          <div className="p-3.5 rounded-2xl border text-caption space-y-2 bg-surface-2 border-border">
+            <div className="text-caption font-bold uppercase tracking-wider text-text-muted">
+              Initial Business Data
+            </div>
+            <div className="space-y-2">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="keepDemoData"
+                  checked={!keepDemoData}
+                  onChange={() => setKeepDemoData(false)}
+                  className="mt-0.5"
+                />
+                <div>
+                  <div className="font-bold text-text">Start with empty database (Recommended for real shop)</div>
+                  <div className="text-[11px] text-text-muted">Starts with zero sample customers, agreements, and stock items. Ready for production.</div>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="keepDemoData"
+                  checked={keepDemoData}
+                  onChange={() => setKeepDemoData(true)}
+                  className="mt-0.5"
+                />
+                <div>
+                  <div className="font-bold text-text">Keep sample demo records</div>
+                  <div className="text-[11px] text-text-muted">Retains pre-loaded sample stock and customer agreements for practice and testing.</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
           {/* Security Notice Banner */}
           <div className="p-3.5 rounded-2xl bg-warning-container text-on-warning-container border border-border text-caption font-semibold flex items-start gap-2.5">
             <ShieldAlert className="w-4 h-4 text-warning shrink-0 mt-0.5" />
             <p className="leading-snug">
-              Creating your Master Admin account will permanently wipe all default demo credentials (<code className="font-mono bg-surface/50 px-1 py-0.5 rounded">admin123</code>, <code className="font-mono bg-surface/50 px-1 py-0.5 rounded">super123</code>, <code className="font-mono bg-surface/50 px-1 py-0.5 rounded">view123</code>). Demo logins can never be used again.
+              Creating your Master Admin account establishes your permanent administrator credentials. All default demo accounts will be permanently deactivated.
             </p>
           </div>
 
@@ -245,7 +284,7 @@ export const FirstRunSetupScreen: React.FC<FirstRunSetupScreenProps> = ({
             className="w-full m3-btn-base m3-btn-filled text-body-sm py-3.5 rounded-2xl shadow-2 font-bold flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <UserCheck className="w-4 h-4" />
-            <span>{isSubmitting ? 'Initializing Master Admin...' : 'Create Account & Wipe Demo Credentials'}</span>
+            <span>{isSubmitting ? 'Initializing Master Admin...' : 'Create Account & Initialize System'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
 

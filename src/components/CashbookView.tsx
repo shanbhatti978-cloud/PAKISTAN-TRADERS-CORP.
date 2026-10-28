@@ -15,6 +15,7 @@ import {
 import { CashBookEntry, ShopSettings } from '../types';
 import { formatDateDDMMYYYY } from '../utils/formatters';
 import { ExpandableSearch } from './ExpandableSearch';
+import { todayLocal } from '../utils/dates';
 
 interface CashbookViewProps {
   cashbook: CashBookEntry[];
@@ -83,18 +84,22 @@ export const CashbookView: React.FC<CashbookViewProps> = ({
       return;
     }
 
-    onAddCashEntry({
-      date: new Date().toISOString().split('T')[0],
-      type,
-      category,
-      amount,
-      referenceNumber: refNum || `EXP-${Date.now().toString().slice(-4)}`,
-      description,
-    });
+    try {
+      onAddCashEntry({
+        date: todayLocal(),
+        type,
+        category,
+        amount,
+        referenceNumber: refNum || `EXP-${Date.now().toString().slice(-4)}`,
+        description,
+      });
 
-    setShowAddModal(false);
-    setAmount(0);
-    setDescription('');
+      setShowAddModal(false);
+      setAmount(0);
+      setDescription('');
+    } catch (err: any) {
+      setValidationError(err?.message || 'Failed to add cashbook entry.');
+    }
   };
 
   return (

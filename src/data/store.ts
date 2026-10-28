@@ -31,9 +31,22 @@ import {
   INITIAL_CATEGORIES,
 } from './mockData';
 import { PermissionManager } from '../utils/permissionManager';
-import { ActivityLogger, calculateHash } from '../utils/activityLogger';
+import {
+  ActivityLogger,
+  calculateHash,
+  hashPassword,
+  verifyPassword,
+  generateSecureSalt,
+} from '../utils/activityLogger';
+import {
+  toLocalISODate,
+  todayLocal,
+  parseLocalDate,
+  addMonthsClamped,
+} from '../utils/dates';
+import { encryptBackup, decryptBackup } from '../utils/backupEncryption';
 
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
   SETTINGS: 'qistflow_settings_v2',
   CUSTOMERS: 'qistflow_customers_v2',
   CATEGORIES: 'qistflow_categories_v2',
@@ -51,52 +64,59 @@ const STORAGE_KEYS = {
   ACTIVITY_LEDGER: 'qistflow_activity_ledger_v2',
 };
 
-// Seed Demo Accounts if none exist
-const DEFAULT_USERS: User[] = [
+// Seed Demo Accounts - no plaintext passwords in source!
+export const DEFAULT_USERS: User[] = [
   {
     id: 'usr-admin-01',
     username: 'admin',
-    passwordHash: 'admin123',
-    salt: 'salt_demo_admin',
+    passwordHash: '',
+    salt: 'salt_demo_admin_v4',
     fullName: 'System Administrator (Demo)',
     role: 'ADMIN',
     createdAt: '2026-01-01',
     isDemo: true,
-    isActive: true,
+    isActive: false,
   },
   {
     id: 'usr-sup-01',
     username: 'supervisor',
-    passwordHash: 'super123',
-    salt: 'salt_demo_sup',
+    passwordHash: '',
+    salt: 'salt_demo_sup_v4',
     fullName: 'Operations Supervisor (Demo)',
     role: 'SUPERVISOR',
     createdAt: '2026-01-01',
     isDemo: true,
-    isActive: true,
+    isActive: false,
   },
   {
     id: 'usr-view-01',
     username: 'viewer',
-    passwordHash: 'view123',
-    salt: 'salt_demo_view',
+    passwordHash: '',
+    salt: 'salt_demo_view_v4',
     fullName: 'Read-Only Auditor (Demo)',
     role: 'VIEWER',
     createdAt: '2026-01-01',
     isDemo: true,
-    isActive: true,
+    isActive: false,
   },
 ];
 
+export function generateSecureId(prefix: string): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
+
 export function generateSalt(): string {
-  return Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+  return generateSecureSalt();
 }
 
 export function normalizeCnic(cnic: string): string {
   return cnic.replace(/[^0-9]/g, '');
 }
 
-function getStored<T>(key: string, fallback: T): T {
+export function getStored<T>(key: string, fallback: T): T {
   try {
     const data = localStorage.getItem(key);
     return data ? JSON.parse(data) : fallback;
@@ -106,12 +126,102 @@ function getStored<T>(key: string, fallback: T): T {
   }
 }
 
-function setStored<T>(key: string, data: T) {
+export function setStored<T>(key: string, data: T) {
   try {
     localStorage.setItem(key, JSON.stringify(data));
   } catch (err) {
     console.error(`Failed writing ${key} to storage:`, err);
   }
+}
+
+/**
+ * Migration 1.1: Recomputes installment due dates in local timezone without rollbacks.
+ * Backs up data first, then runs only once.
+ */
+function runInstallmentDateMigration(currentAgreements: Agreement[]): Agreement[] {
+  const MIGRATION_FLAG_KEY = 'qistflow_date_migration_done_v1';
+  const BACKUP_KEY = 'qistflow_pre_date_fix_backup_v1';
+
+  try {
+    if (localStorage.getItem(MIGRATION_FLAG_KEY) === 'true') {
+      return currentAgreements;
+    }
+
+    // Step 1: Automatic pre-migration backup
+    const backupSnapshot = {
+      timestamp: new Date().toISOString(),
+      agreements: currentAgreements,
+    };
+    localStorage.setItem(BACKUP_KEY, JSON.stringify(backupSnapshot));
+
+    // Step 2: Recompute dueDate for pending/partially_paid/overdue slots
+    let modified = false;
+    const updatedAgreements = currentAgreements.map((agr) => {
+      if (!agr.schedule || agr.schedule.length === 0) return agr;
+      const start = parseLocalDate(agr.deliveryDate || agr.startDate || todayLocal());
+      const dueDay = agr.dueDayOfMonth || 10;
+
+      const updatedSchedule = agr.schedule.map((slot) => {
+        // Never touch paid slots!
+        if (slot.status === 'paid') return slot;
+
+        const i = slot.installmentNumber;
+        const newDueDate = toLocalISODate(addMonthsClamped(start, i, dueDay));
+        if (slot.dueDate !== newDueDate) {
+          modified = true;
+          return { ...slot, dueDate: newDueDate };
+        }
+        return slot;
+      });
+
+      return { ...agr, schedule: updatedSchedule };
+    });
+
+    localStorage.setItem(MIGRATION_FLAG_KEY, 'true');
+    if (modified) {
+      setStored(STORAGE_KEYS.AGREEMENTS, updatedAgreements);
+    }
+    return updatedAgreements;
+  } catch (err) {
+    console.error('Failed to run date migration:', err);
+    return currentAgreements;
+  }
+}
+
+/**
+ * Derives the next unique Agreement number from the highest existing number
+ */
+export function getNextAgreementNumber(agreements: Agreement[]): string {
+  const year = new Date().getFullYear();
+  let maxSeq = 1000;
+  agreements.forEach((a) => {
+    const match = a.agreementNumber?.match(/(\d+)$/);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && num > maxSeq) {
+        maxSeq = num;
+      }
+    }
+  });
+  return `AGR-${year}-${maxSeq + 1}`;
+}
+
+/**
+ * Derives the next unique Receipt number from the highest existing number
+ */
+export function getNextReceiptNumber(payments: Payment[]): string {
+  const year = new Date().getFullYear();
+  let maxSeq = 3000;
+  payments.forEach((p) => {
+    const match = p.receiptNumber?.match(/(\d+)$/);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && num > maxSeq) {
+        maxSeq = num;
+      }
+    }
+  });
+  return `RCP-${year}-${maxSeq + 1}`;
 }
 
 export function useQistStore() {
@@ -150,9 +260,10 @@ export function useQistStore() {
   const [stockMovements, setStockMovements] = useState<StockMovement[]>(() =>
     getStored(STORAGE_KEYS.STOCK_MOVEMENTS, INITIAL_STOCK_MOVEMENTS)
   );
-  const [agreements, setAgreements] = useState<Agreement[]>(() =>
-    getStored(STORAGE_KEYS.AGREEMENTS, INITIAL_AGREEMENTS)
-  );
+  const [agreements, setAgreements] = useState<Agreement[]>(() => {
+    const initialAgrs = getStored(STORAGE_KEYS.AGREEMENTS, INITIAL_AGREEMENTS);
+    return runInstallmentDateMigration(initialAgrs);
+  });
   const [payments, setPayments] = useState<Payment[]>(() =>
     getStored(STORAGE_KEYS.PAYMENTS, INITIAL_PAYMENTS)
   );
@@ -230,7 +341,7 @@ export function useQistStore() {
 
   const addAuditLog = (action: string, details: string) => {
     const newLog: AuditLog = {
-      id: `log-${Date.now()}`,
+      id: generateSecureId('log'),
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
       action,
       details,
@@ -245,19 +356,20 @@ export function useQistStore() {
     username: string;
     password: string;
     shopName?: string;
+    keepDemoData?: boolean;
   }) => {
     const cleanUsername = params.username.toLowerCase().trim();
-    const salt = generateSalt();
-    const passwordHash = await calculateHash(`SALT:${salt}|PASS:${params.password}`);
+    const salt = generateSecureSalt();
+    const passwordHash = await hashPassword(params.password, salt);
 
     const realAdminUser: User = {
-      id: `usr-real-admin-${Date.now()}`,
+      id: generateSecureId('usr-real-admin'),
       username: cleanUsername,
       passwordHash,
       salt,
       fullName: params.fullName.trim(),
       role: 'ADMIN',
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: todayLocal(),
       isDemo: false,
       isActive: true,
       mustChangePassword: false,
@@ -287,10 +399,25 @@ export function useQistStore() {
       }));
     }
 
+    // Default: start with empty data for real shop, clearing all business collections
+    if (!params.keepDemoData) {
+      setCustomers([]);
+      setStock([]);
+      setStockReceipts([]);
+      setStockMovements([]);
+      setAgreements([]);
+      setPayments([]);
+      setReversals([]);
+      setCashbook([]);
+      setAuditLogs([]);
+    }
+
     logActivity(
       'DEMO_ACCOUNTS_REMOVED',
       'System',
-      `Master Real Admin account '${realAdminUser.username}' created. All default demo credentials permanently disabled.`,
+      `Master Real Admin account '${realAdminUser.username}' created. ${
+        params.keepDemoData ? 'Demo records retained.' : 'Empty business database initialized for production.'
+      }`,
       realAdminUser.id,
       'Demo Accounts Active',
       'Demo Accounts Disabled'
@@ -298,10 +425,17 @@ export function useQistStore() {
 
     addAuditLog(
       'DEMO_ACCOUNTS_REMOVED',
-      `Owner Admin ${realAdminUser.username} created. Demo accounts wiped.`
+      `Owner Admin ${realAdminUser.username} created. ${
+        params.keepDemoData ? 'Demo records retained.' : 'Demo business data wiped.'
+      }`
     );
 
-    return { success: true, message: 'Master Admin account created. Demo accounts removed.' };
+    return {
+      success: true,
+      message: params.keepDemoData
+        ? 'Master Admin account created. Demo data preserved for testing.'
+        : 'Master Admin account created. Clean production database initialized.',
+    };
   };
 
   // --- AUTHENTICATION & LOGIN (WITH LOCKOUT & GENERIC ERROR) ---
@@ -349,14 +483,8 @@ export function useQistStore() {
       return { success: false, message: GENERIC_ERROR };
     }
 
-    // Verify Password Hash (Salted or Legacy Plaintext)
-    let isMatch = false;
-    if (user.salt) {
-      const computedHash = await calculateHash(`SALT:${user.salt}|PASS:${passwordAttempt}`);
-      isMatch = computedHash === user.passwordHash;
-    } else {
-      isMatch = user.passwordHash === passwordAttempt;
-    }
+    // Verify Password Hash (PBKDF2 or Legacy Salted SHA-256)
+    const isMatch = await verifyPassword(passwordAttempt, user.salt, user.passwordHash);
 
     if (!isMatch) {
       const newAttempts = (user.failedAttempts || 0) + 1;
@@ -397,9 +525,22 @@ export function useQistStore() {
       };
     }
 
-    // Successful Login: Reset failed attempts & record last login
+    // Successful Login: Reset failed attempts & upgrade legacy hash to PBKDF2 if needed
+    let updatedHash = user.passwordHash;
+    let updatedSalt = user.salt;
+    if (!user.passwordHash.startsWith('pbkdf2:')) {
+      try {
+        updatedSalt = generateSecureSalt();
+        updatedHash = await hashPassword(passwordAttempt, updatedSalt);
+      } catch {
+        // Keep existing if derivation fails
+      }
+    }
+
     const updatedUser: User = {
       ...user,
+      passwordHash: updatedHash,
+      salt: updatedSalt,
       failedAttempts: 0,
       lockoutUntil: undefined,
       lastLoginAt: new Date().toISOString(),
@@ -434,7 +575,7 @@ export function useQistStore() {
         passwordHash: '',
         fullName: 'Read-Only Viewer',
         role: 'VIEWER',
-        createdAt: new Date().toISOString().split('T')[0],
+        createdAt: todayLocal(),
         isActive: true,
       };
       setUsers((prev) => [...prev.filter((u) => u.username !== 'viewer'), activeViewer!]);
@@ -460,17 +601,17 @@ export function useQistStore() {
       throw new Error(`Username '${cleanUsername}' is already taken.`);
     }
 
-    const salt = generateSalt();
-    const passwordHash = await calculateHash(`SALT:${salt}|PASS:${params.password}`);
+    const salt = generateSecureSalt();
+    const passwordHash = await hashPassword(params.password, salt);
 
     const newUser: User = {
-      id: `usr-${Date.now()}`,
+      id: generateSecureId('usr'),
       username: cleanUsername,
       passwordHash,
       salt,
       fullName: params.fullName.trim(),
       role: params.role,
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: todayLocal(),
       isDemo: false,
       isActive: true,
       mustChangePassword: true,
@@ -542,8 +683,8 @@ export function useQistStore() {
     const target = users.find((u) => u.id === id);
     if (!target) throw new Error("User account not found.");
 
-    const salt = generateSalt();
-    const passwordHash = await calculateHash(`SALT:${salt}|PASS:${newTempPassword}`);
+    const salt = generateSecureSalt();
+    const passwordHash = await hashPassword(newTempPassword, salt);
 
     setUsers((prev) =>
       prev.map((u) =>
@@ -634,21 +775,14 @@ export function useQistStore() {
 
   // --- OWN PASSWORD CHANGE FOR ANY USER ---
   const changeOwnPassword = async (oldPasswordAttempt: string, newPasswordAttempt: string) => {
-    // Verify Old Password
-    let isOldMatch = false;
-    if (currentUser.salt) {
-      const computedOldHash = await calculateHash(`SALT:${currentUser.salt}|PASS:${oldPasswordAttempt}`);
-      isOldMatch = computedOldHash === currentUser.passwordHash;
-    } else {
-      isOldMatch = currentUser.passwordHash === oldPasswordAttempt;
-    }
+    const isOldMatch = await verifyPassword(oldPasswordAttempt, currentUser.salt, currentUser.passwordHash);
 
     if (!isOldMatch) {
       return { success: false, message: 'Current password is incorrect.' };
     }
 
-    const newSalt = generateSalt();
-    const newPasswordHash = await calculateHash(`SALT:${newSalt}|PASS:${newPasswordAttempt}`);
+    const newSalt = generateSecureSalt();
+    const newPasswordHash = await hashPassword(newPasswordAttempt, newSalt);
 
     const updatedUser: User = {
       ...currentUser,
@@ -671,8 +805,8 @@ export function useQistStore() {
 
   // --- FORCED PASSWORD CHANGE (MUST CHANGE TEMP PASSWORD) ---
   const updateForcedPassword = async (newPasswordAttempt: string) => {
-    const newSalt = generateSalt();
-    const newPasswordHash = await calculateHash(`SALT:${newSalt}|PASS:${newPasswordAttempt}`);
+    const newSalt = generateSecureSalt();
+    const newPasswordHash = await hashPassword(newPasswordAttempt, newSalt);
 
     const updatedUser: User = {
       ...currentUser,
@@ -715,13 +849,13 @@ export function useQistStore() {
       throw new Error("You don't have permission to add customers.");
     }
 
-    const id = `cust-${Date.now()}`;
+    const id = generateSecureId('cust');
     const customerCode = `CUST-${(customers.length + 1).toString().padStart(3, '0')}`;
     const newCust: Customer = {
       ...customerData,
       id,
       customerCode,
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: todayLocal(),
     };
     setCustomers((prev) => [newCust, ...prev]);
 
@@ -765,6 +899,12 @@ export function useQistStore() {
       throw new Error("Only Admin has permission to delete customers.");
     }
 
+    // Phase 2.1: Refuse when customer has agreements
+    const hasLinkedAgreements = agreements.some((a) => a.customerId === id);
+    if (hasLinkedAgreements) {
+      throw new Error("Cannot delete customer with active or past instalment agreements. Remove or cancel the agreements first.");
+    }
+
     const target = customers.find((c) => c.id === id);
     setCustomers((prev) => prev.filter((c) => c.id !== id));
 
@@ -806,7 +946,7 @@ export function useQistStore() {
     const oldQty = targetItem ? targetItem.inStock : 0;
 
     if (!targetItem) {
-      const newStockId = `stock-${Date.now()}`;
+      const newStockId = generateSecureId('stock');
       targetItem = {
         id: newStockId,
         name: params.name,
@@ -845,7 +985,7 @@ export function useQistStore() {
     }
 
     const newReceipt: StockReceipt = {
-      id: `rcpt-${Date.now()}`,
+      id: generateSecureId('rcpt'),
       supplierName: params.supplierName,
       purchaseRef: params.purchaseRef,
       receivedDate: params.receivedDate,
@@ -859,7 +999,7 @@ export function useQistStore() {
     setStockReceipts((prev) => [newReceipt, ...prev]);
 
     const movement: StockMovement = {
-      id: `mov-${Date.now()}`,
+      id: generateSecureId('mov'),
       date: params.receivedDate,
       type: 'RECEIVED',
       stockItemId: targetItem.id,
@@ -875,7 +1015,7 @@ export function useQistStore() {
 
     if (params.unitCost > 0) {
       const cbEntry: CashBookEntry = {
-        id: `cb-${Date.now()}`,
+        id: generateSecureId('cb'),
         date: params.receivedDate,
         type: 'out',
         category: 'Stock Purchase',
@@ -905,7 +1045,7 @@ export function useQistStore() {
       throw new Error("You don't have permission to add stock items.");
     }
 
-    const newId = `stock-${Date.now()}`;
+    const newId = generateSecureId('stock');
     const newItem: StockItem = {
       ...itemData,
       id: newId,
@@ -990,6 +1130,26 @@ export function useQistStore() {
       throw new Error("You don't have permission to create sales agreements.");
     }
 
+    // Input Validation (Phase 1.5)
+    if (!params.cashPrice || isNaN(params.cashPrice) || !isFinite(params.cashPrice) || params.cashPrice <= 0) {
+      throw new Error("Cash price must be a valid positive number.");
+    }
+    if (!params.totalInstalmentPrice || isNaN(params.totalInstalmentPrice) || !isFinite(params.totalInstalmentPrice) || params.totalInstalmentPrice <= 0) {
+      throw new Error("Total instalment price must be a valid positive number.");
+    }
+    if (params.downPayment === undefined || isNaN(params.downPayment) || !isFinite(params.downPayment) || params.downPayment < 0) {
+      throw new Error("Down payment cannot be negative.");
+    }
+    if (params.downPayment > params.totalInstalmentPrice) {
+      throw new Error("Down payment cannot exceed total instalment price.");
+    }
+    if (!params.monthDuration || !Number.isInteger(params.monthDuration) || params.monthDuration < 1) {
+      throw new Error("Duration must be an integer of at least 1 month.");
+    }
+    if (!params.dueDayOfMonth || !Number.isInteger(params.dueDayOfMonth) || params.dueDayOfMonth < 1 || params.dueDayOfMonth > 31) {
+      throw new Error("Due day of month must be an integer between 1 and 31.");
+    }
+
     const customer = customers.find((c) => c.id === params.customerId);
     const item = stock.find((s) => s.id === params.itemId);
 
@@ -1002,18 +1162,26 @@ export function useQistStore() {
     }
 
     const remainingBalance = Math.max(0, params.totalInstalmentPrice - params.downPayment);
-    const monthlyInstalment =
-      params.monthlyInstalment && params.monthlyInstalment > 0
-        ? params.monthlyInstalment
-        : params.monthDuration > 0
-        ? Math.round(remainingBalance / params.monthDuration)
+
+    // Monthly installment calculation & validation
+    let monthlyInstalment = 0;
+    if (params.monthlyInstalment && params.monthlyInstalment > 0) {
+      const totalCustomExceptLast = params.monthlyInstalment * (params.monthDuration - 1);
+      if (totalCustomExceptLast >= remainingBalance) {
+        throw new Error("Custom monthly installment is too large for the remaining balance and duration.");
+      }
+      monthlyInstalment = params.monthlyInstalment;
+    } else {
+      monthlyInstalment = params.monthDuration > 0
+        ? Math.floor(remainingBalance / params.monthDuration)
         : 0;
+    }
 
     const schedule: InstalmentDueDate[] = [];
-    const start = new Date(params.deliveryDate || params.startDate);
+    const start = parseLocalDate(params.deliveryDate || params.startDate || todayLocal());
 
     for (let i = 1; i <= params.monthDuration; i++) {
-      const dueDate = new Date(start.getFullYear(), start.getMonth() + i, params.dueDayOfMonth);
+      const dueDate = addMonthsClamped(start, i, params.dueDayOfMonth);
       const amount =
         i === params.monthDuration
           ? remainingBalance - monthlyInstalment * (params.monthDuration - 1)
@@ -1021,17 +1189,23 @@ export function useQistStore() {
 
       schedule.push({
         installmentNumber: i,
-        dueDate: dueDate.toISOString().split('T')[0],
+        dueDate: toLocalISODate(dueDate),
         amount: Math.max(0, amount),
         paidAmount: 0,
         status: 'pending',
       });
     }
 
-    const agreementNumber = `AGR-${new Date().getFullYear()}-${1000 + agreements.length + 1}`;
+    // Guarantee schedule sum equals remaining balance exactly
+    const scheduleSum = schedule.reduce((sum, slot) => sum + slot.amount, 0);
+    if (scheduleSum !== remainingBalance) {
+      throw new Error(`Schedule calculation error: sum (${scheduleSum}) must equal remaining balance (${remainingBalance}).`);
+    }
+
+    const agreementNumber = getNextAgreementNumber(agreements);
 
     const newAgr: Agreement = {
-      id: `agr-${Date.now()}`,
+      id: generateSecureId('agr'),
       agreementNumber,
       customerId: params.customerId,
       customerCode: customer.customerCode,
@@ -1042,8 +1216,8 @@ export function useQistStore() {
         params.unitCost !== undefined
           ? params.unitCost
           : item.unitCost || Math.round(params.cashPrice * 0.85),
-      purchaseDate: params.purchaseDate || item.purchaseDate || '2026-09-01',
-      deliveryDate: params.deliveryDate || params.startDate,
+      purchaseDate: params.purchaseDate || item.purchaseDate || todayLocal(),
+      deliveryDate: params.deliveryDate || params.startDate || todayLocal(),
       cashPrice: params.cashPrice,
       interestPercentage: params.interestPercentage || 0,
       markupAmount:
@@ -1058,11 +1232,11 @@ export function useQistStore() {
       monthDuration: params.monthDuration,
       monthlyInstalment,
       dueDayOfMonth: params.dueDayOfMonth,
-      startDate: params.deliveryDate || params.startDate,
+      startDate: params.deliveryDate || params.startDate || todayLocal(),
       status: 'active',
       schedule,
       notes: params.notes,
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: todayLocal(),
     };
 
     setAgreements((prev) => [newAgr, ...prev]);
@@ -1082,7 +1256,7 @@ export function useQistStore() {
     );
 
     const movement: StockMovement = {
-      id: `mov-${Date.now()}`,
+      id: generateSecureId('mov'),
       date: params.startDate,
       type: 'ISSUED',
       stockItemId: item.id,
@@ -1098,7 +1272,7 @@ export function useQistStore() {
 
     if (params.downPayment > 0) {
       const cbEntry: CashBookEntry = {
-        id: `cb-${Date.now()}`,
+        id: generateSecureId('cb'),
         date: params.startDate,
         type: 'in',
         category: 'Down Payment',
@@ -1158,6 +1332,12 @@ export function useQistStore() {
     const target = agreements.find((a) => a.id === id);
     if (!target) return;
 
+    // Phase 2.2: Block deletion when payments exist
+    const hasPayments = payments.some((p) => p.agreementId === id);
+    if (hasPayments) {
+      throw new Error("Cannot delete agreement with recorded payment history. To close it, mark its status as cancelled or completed.");
+    }
+
     if (restoreStock && target.itemId) {
       setStock((prev) =>
         prev.map((s) =>
@@ -1181,7 +1361,7 @@ export function useQistStore() {
     addAuditLog('AGREEMENT_DELETED', `Deleted agreement: ${target.agreementNumber}`);
   };
 
-  // --- PAYMENT COLLECTION ---
+  // --- PAYMENT COLLECTION (Phase 1.4 Accounting Safety) ---
   const recordPayment = (params: {
     agreementId: string;
     installmentNumber: number;
@@ -1197,19 +1377,63 @@ export function useQistStore() {
       throw new Error("You don't have permission to record recovery payments.");
     }
 
+    // Input Validation
+    if (!params.amountPaid || isNaN(params.amountPaid) || !isFinite(params.amountPaid) || params.amountPaid <= 0) {
+      throw new Error("Payment amount must be a valid positive number.");
+    }
+
     const agreement = agreements.find((a) => a.id === params.agreementId);
     if (!agreement) throw new Error("Agreement not found");
 
+    if (agreement.status === 'completed') {
+      throw new Error("Agreement is already completed. No further payments can be accepted.");
+    }
+    if (agreement.status === 'cancelled') {
+      throw new Error("Agreement is cancelled. Payments cannot be accepted.");
+    }
+
+    if (params.amountPaid > agreement.remainingBalance) {
+      throw new Error(
+        `Payment amount (${settings.currencySymbol} ${params.amountPaid.toLocaleString()}) exceeds agreement remaining balance (${settings.currencySymbol} ${agreement.remainingBalance.toLocaleString()}).`
+      );
+    }
+
     const customer = customers.find((c) => c.id === agreement.customerId);
-    const receiptNumber = `RCP-${new Date().getFullYear()}-${3000 + payments.length + 1}`;
+    const receiptNumber = getNextReceiptNumber(payments);
+    const lateFee = Math.max(0, params.lateFee || 0);
+    const discount = Math.max(0, params.discount || 0);
 
-    const lateFee = params.lateFee || 0;
-    const discount = params.discount || 0;
+    // Multi-slot auto-allocation for overpayment across unpaid instalments
+    let unallocatedAmount = params.amountPaid;
+    const affectedInstallmentNumbers: number[] = [];
 
-    let isFullyPaid = true;
+    // Sort unpaid slots prioritizing the requested installment number
+    const sortedSlots = [...agreement.schedule].sort((a, b) => a.installmentNumber - b.installmentNumber);
+    const targetSlot = sortedSlots.find((s) => s.installmentNumber === params.installmentNumber && s.status !== 'paid');
+    const otherUnpaidSlots = sortedSlots.filter((s) => s.installmentNumber !== params.installmentNumber && s.status !== 'paid');
+    const prioritySlots = targetSlot ? [targetSlot, ...otherUnpaidSlots] : otherUnpaidSlots;
+
+    if (prioritySlots.length === 0) {
+      throw new Error("No unpaid installments found for this agreement.");
+    }
+
+    const slotAllocationMap = new Map<number, number>();
+
+    for (const slot of prioritySlots) {
+      if (unallocatedAmount <= 0) break;
+      const unpaidOnSlot = slot.amount - slot.paidAmount;
+      if (unpaidOnSlot <= 0) continue;
+
+      const allocation = Math.min(unallocatedAmount, unpaidOnSlot);
+      slotAllocationMap.set(slot.installmentNumber, allocation);
+      affectedInstallmentNumbers.push(slot.installmentNumber);
+      unallocatedAmount -= allocation;
+    }
+
     const updatedSchedule = agreement.schedule.map((slot) => {
-      if (slot.installmentNumber === params.installmentNumber) {
-        const newPaidAmount = slot.paidAmount + params.amountPaid;
+      const allocation = slotAllocationMap.get(slot.installmentNumber);
+      if (allocation !== undefined && allocation > 0) {
+        const newPaidAmount = slot.paidAmount + allocation;
         const isSlotPaid = newPaidAmount >= slot.amount;
         return {
           ...slot,
@@ -1219,18 +1443,12 @@ export function useQistStore() {
           receiptNumber,
         };
       }
-      if (slot.status !== 'paid' && slot.installmentNumber !== params.installmentNumber) {
-        isFullyPaid = false;
-      }
       return slot;
     });
 
-    const updatedStatus =
-      isFullyPaid && updatedSchedule.every((s) => s.status === 'paid')
-        ? 'completed'
-        : agreement.status;
-
+    const isFullyPaid = updatedSchedule.every((s) => s.status === 'paid');
     const newRemainingBalance = Math.max(0, agreement.remainingBalance - params.amountPaid);
+    const updatedStatus = isFullyPaid ? 'completed' : agreement.status;
 
     setAgreements((prev) =>
       prev.map((a) =>
@@ -1245,13 +1463,14 @@ export function useQistStore() {
       )
     );
 
+    const paymentId = generateSecureId('pay');
     const newPayment: Payment = {
-      id: `pay-${Date.now()}`,
+      id: paymentId,
       receiptNumber,
       agreementId: agreement.id,
       customerId: agreement.customerId,
       customerName: customer?.fullName || 'Customer',
-      installmentNumbers: [params.installmentNumber],
+      installmentNumbers: affectedInstallmentNumbers.length > 0 ? affectedInstallmentNumbers : [params.installmentNumber],
       amountPaid: params.amountPaid,
       lateFee,
       discount,
@@ -1264,16 +1483,17 @@ export function useQistStore() {
 
     setPayments((prev) => [newPayment, ...prev]);
 
+    // Cashbook In = net cash collected (amountPaid + lateFee - discount)
     const netCashIn = params.amountPaid + lateFee - discount;
     if (netCashIn > 0) {
       const cbEntry: CashBookEntry = {
-        id: `cb-${Date.now()}`,
+        id: generateSecureId('cb'),
         date: params.date,
         type: 'in',
         category: 'Instalment Recovery',
         amount: netCashIn,
         referenceNumber: receiptNumber,
-        description: `Installment #${params.installmentNumber} collection (${customer?.fullName || 'Customer'})`,
+        description: `Installment #${newPayment.installmentNumbers.join(', ')} collection (${customer?.fullName || 'Customer'})`,
       };
       setCashbook((prev) => [cbEntry, ...prev]);
     }
@@ -1291,7 +1511,7 @@ export function useQistStore() {
     return newPayment;
   };
 
-  // --- REVERSE PAYMENT ---
+  // --- REVERSE PAYMENT (Phase 1.4 Accounting Safe Reversal) ---
   const reversePayment = (paymentId: string, reason: string) => {
     if (!verifyPermission('REVERSE_PAYMENT', 'Recovery', 'Reverse Payment Receipt')) {
       throw new Error("You don't have permission to reverse payments.");
@@ -1309,20 +1529,38 @@ export function useQistStore() {
       prev.map((p) => (p.id === paymentId ? { ...p, isReversed: true } : p))
     );
 
+    // Find other non-reversed payments for this agreement to restore previous receipt/date on partial reversal
+    const otherValidPayments = payments.filter(
+      (p) => p.id !== paymentId && !p.isReversed && p.agreementId === agreement.id
+    );
+
     const restoredBalance = agreement.remainingBalance + targetPayment.amountPaid;
+    let remainingToDeduct = targetPayment.amountPaid;
+
     const restoredSchedule = agreement.schedule.map((slot) => {
-      if (targetPayment.installmentNumbers.includes(slot.installmentNumber)) {
-        const newPaidAmount = Math.max(0, slot.paidAmount - targetPayment.amountPaid);
+      if (targetPayment.installmentNumbers.includes(slot.installmentNumber) && remainingToDeduct > 0) {
+        const deductFromSlot = Math.min(remainingToDeduct, slot.paidAmount);
+        const newPaidAmount = Math.max(0, slot.paidAmount - deductFromSlot);
+        remainingToDeduct -= deductFromSlot;
+
+        // Restore prior receipt details if previous payments contributed to this slot
+        const priorPayment = otherValidPayments
+          .filter((p) => p.installmentNumbers.includes(slot.installmentNumber))
+          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+
         return {
           ...slot,
           paidAmount: newPaidAmount,
           status: (newPaidAmount === 0 ? 'pending' : 'partially_paid') as InstalmentDueDate['status'],
-          paidDate: undefined,
-          receiptNumber: undefined,
+          paidDate: newPaidAmount > 0 ? (priorPayment?.date || slot.paidDate) : undefined,
+          receiptNumber: newPaidAmount > 0 ? (priorPayment?.receiptNumber || slot.receiptNumber) : undefined,
         };
       }
       return slot;
     });
+
+    // If agreement was completed, it now has an outstanding balance so it becomes active
+    const restoredStatus = agreement.status === 'completed' ? 'active' : agreement.status;
 
     setAgreements((prev) =>
       prev.map((a) =>
@@ -1330,7 +1568,7 @@ export function useQistStore() {
           ? {
               ...a,
               remainingBalance: restoredBalance,
-              status: 'active',
+              status: restoredStatus,
               schedule: restoredSchedule,
             }
           : a
@@ -1338,7 +1576,7 @@ export function useQistStore() {
     );
 
     const reversalRecord: PaymentReversal = {
-      id: `rev-${Date.now()}`,
+      id: generateSecureId('rev'),
       paymentId: targetPayment.id,
       receiptNumber: targetPayment.receiptNumber,
       agreementId: agreement.id,
@@ -1350,16 +1588,21 @@ export function useQistStore() {
 
     setReversals((prev) => [reversalRecord, ...prev]);
 
-    const cbOut: CashBookEntry = {
-      id: `cb-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
-      type: 'out',
-      category: 'Refund Reversal',
-      amount: targetPayment.amountPaid,
-      referenceNumber: `REV-${targetPayment.receiptNumber}`,
-      description: `Reversal of payment receipt ${targetPayment.receiptNumber}. Reason: ${reason}`,
-    };
-    setCashbook((prev) => [cbOut, ...prev]);
+    // Cashbook Reversal match: refund cash-out must equal original net cash-in (amountPaid + lateFee - discount)
+    const originalNetCashIn = targetPayment.amountPaid + (targetPayment.lateFee || 0) - (targetPayment.discount || 0);
+
+    if (originalNetCashIn > 0) {
+      const cbOut: CashBookEntry = {
+        id: generateSecureId('cb'),
+        date: todayLocal(),
+        type: 'out',
+        category: 'Refund Reversal',
+        amount: originalNetCashIn,
+        referenceNumber: `REV-${targetPayment.receiptNumber}`,
+        description: `Reversal of payment receipt ${targetPayment.receiptNumber} (Net: Rs. ${originalNetCashIn.toLocaleString()}). Reason: ${reason}`,
+      };
+      setCashbook((prev) => [cbOut, ...prev]);
+    }
 
     logActivity(
       'REVERSE_PAYMENT',
@@ -1381,7 +1624,7 @@ export function useQistStore() {
 
     const newEntry: CashBookEntry = {
       ...entryData,
-      id: `cb-${Date.now()}`,
+      id: generateSecureId('cb'),
     };
     setCashbook((prev) => [newEntry, ...prev]);
 
@@ -1404,7 +1647,7 @@ export function useQistStore() {
       throw new Error("You don't have permission to add product categories.");
     }
 
-    const newId = `cat-${Date.now()}`;
+    const newId = generateSecureId('cat');
     const code = `CAT-${category.name.substring(0, 2).toUpperCase()}`;
     const newCat: CategoryItem = {
       ...category,
@@ -1440,8 +1683,8 @@ export function useQistStore() {
     addAuditLog('CATEGORY_DELETED', `Deleted category ${cat?.name || id}`);
   };
 
-  // --- BACKUP DATA MANAGEMENT ---
-  const exportBackupJSON = () => {
+  // --- BACKUP DATA MANAGEMENT (Phase 2.3 & 2.4) ---
+  const exportBackupJSON = async (encryptionPassword?: string): Promise<string> => {
     if (!verifyPermission('EXPORT_REPORTS', 'System', 'Export Database Backup')) {
       throw new Error("You don't have permission to export database backups.");
     }
@@ -1465,19 +1708,84 @@ export function useQistStore() {
       activityLedger,
     };
 
-    logActivity('EXPORT', 'System', 'Exported JSON Database Backup');
-    return JSON.stringify(backupData, null, 2);
+    const rawJson = JSON.stringify(backupData, null, 2);
+
+    if (encryptionPassword && encryptionPassword.trim()) {
+      const encrypted = await encryptBackup(rawJson, encryptionPassword.trim());
+      logActivity('EXPORT', 'System', 'Exported Password-Encrypted AES-GCM Database Backup');
+      return encrypted;
+    }
+
+    logActivity('EXPORT', 'System', 'Exported Plaintext JSON Database Backup');
+    return rawJson;
   };
 
-  const importBackupJSON = (jsonString: string) => {
-    if (!verifyPermission('ADD_ITEM', 'System', 'Restore Database Backup')) {
+  const importBackupJSON = async (
+    rawInput: string,
+    decryptionPassword?: string,
+    adminConfirmPassword?: string
+  ): Promise<{ success: boolean; message: string }> => {
+    // Phase 1.2: Guarded by RESTORE_BACKUP (Admin only)
+    if (!verifyPermission('RESTORE_BACKUP', 'System', 'Restore Database Backup')) {
       throw new Error("Only Admin can import/restore database backups.");
     }
 
+    // Phase 2.3: Admin re-entry of password if provided
+    if (adminConfirmPassword) {
+      const isAuth = await verifyPassword(adminConfirmPassword, currentUser.salt, currentUser.passwordHash);
+      if (!isAuth) {
+        throw new Error("Incorrect Admin confirmation password. Restore aborted.");
+      }
+    }
+
     try {
-      const data = JSON.parse(jsonString);
+      let jsonStringToParse = rawInput;
+
+      // Detect if encrypted
+      if (rawInput.includes('"version": "4.0-ENCRYPTED-AES-GCM"')) {
+        if (!decryptionPassword) {
+          throw new Error("This backup is password-encrypted. Please provide the decryption password.");
+        }
+        jsonStringToParse = await decryptBackup(rawInput, decryptionPassword);
+      }
+
+      const data = JSON.parse(jsonStringToParse);
+
+      // Phase 2.3: All-or-nothing validation of required keys
+      if (!data || typeof data !== 'object') {
+        throw new Error("Invalid backup data: content is not a valid JSON object.");
+      }
+
+      const requiredCollections = ['settings', 'customers', 'categories', 'stock', 'agreements', 'payments', 'cashbook'];
+      for (const reqKey of requiredCollections) {
+        if (!(reqKey in data)) {
+          throw new Error(`Corrupted or incomplete backup: missing required '${reqKey}' collection. Restore aborted without modifying existing records.`);
+        }
+      }
+
+      // Pre-restore snapshot backup
+      try {
+        localStorage.setItem(
+          'qistflow_pre_restore_snapshot',
+          JSON.stringify({
+            timestamp: new Date().toISOString(),
+            settings,
+            users,
+            customers,
+            categories,
+            stock,
+            agreements,
+            payments,
+            cashbook,
+          })
+        );
+      } catch {
+        // Continue if snapshot storage fails
+      }
+
+      // Apply all-or-nothing in a single state transition
       if (data.settings) setSettings(data.settings);
-      if (data.users) setUsers(data.users);
+      if (Array.isArray(data.users)) setUsers(data.users);
       if (data.hasRealAdmin !== undefined) setHasRealAdmin(data.hasRealAdmin);
 
       const importedHasReal = (data.users || []).some(
@@ -1487,34 +1795,34 @@ export function useQistStore() {
         setHasRealAdmin(true);
       }
 
-      if (data.customers) setCustomers(data.customers);
-      if (data.categories) setCategories(data.categories);
-      if (data.stock) setStock(data.stock);
-      if (data.stockReceipts) setStockReceipts(data.stockReceipts);
-      if (data.stockMovements) setStockMovements(data.stockMovements);
-      if (data.agreements) setAgreements(data.agreements);
-      if (data.payments) setPayments(data.payments);
-      if (data.reversals) setReversals(data.reversals);
-      if (data.cashbook) setCashbook(data.cashbook);
-      if (data.auditLogs) setAuditLogs(data.auditLogs);
-      if (data.activityLedger) setActivityLedger(data.activityLedger);
+      setCustomers(Array.isArray(data.customers) ? data.customers : []);
+      setCategories(Array.isArray(data.categories) ? data.categories : []);
+      setStock(Array.isArray(data.stock) ? data.stock : []);
+      setStockReceipts(Array.isArray(data.stockReceipts) ? data.stockReceipts : []);
+      setStockMovements(Array.isArray(data.stockMovements) ? data.stockMovements : []);
+      setAgreements(Array.isArray(data.agreements) ? data.agreements : []);
+      setPayments(Array.isArray(data.payments) ? data.payments : []);
+      setReversals(Array.isArray(data.reversals) ? data.reversals : []);
+      setCashbook(Array.isArray(data.cashbook) ? data.cashbook : []);
+      setAuditLogs(Array.isArray(data.auditLogs) ? data.auditLogs : []);
+      setActivityLedger(Array.isArray(data.activityLedger) ? data.activityLedger : []);
 
-      logActivity('ADD_ENTRY', 'System', 'Restored JSON Database Backup');
-      return { success: true, message: 'Backup imported successfully' };
+      logActivity('ADD_ENTRY', 'System', 'Restored JSON Database Backup successfully');
+      return { success: true, message: 'Backup successfully restored! All collections updated.' };
     } catch (err: any) {
-      return { success: false, message: err.message || 'Invalid backup JSON file' };
+      return { success: false, message: err.message || 'Invalid or incompatible backup file.' };
     }
   };
 
   const resetToDemoData = () => {
-    if (!verifyPermission('ADD_ITEM', 'System', 'Reset Demo Data')) {
+    // Phase 1.2: Guarded by RESET_DATABASE (Admin only)
+    if (!verifyPermission('RESET_DATABASE', 'System', 'Reset Database')) {
       throw new Error("Only Admin can reset database.");
     }
 
     setSettings(INITIAL_SHOP_SETTINGS);
     setUsers(DEFAULT_USERS);
     setHasRealAdmin(false);
-    setCurrentUser(DEFAULT_USERS[0]);
     setCustomers(INITIAL_CUSTOMERS);
     setCategories(INITIAL_CATEGORIES);
     setStock(INITIAL_STOCK);
@@ -1528,6 +1836,9 @@ export function useQistStore() {
     setActivityLedger([]);
 
     logActivity('ADD_ENTRY', 'System', 'Reset application database to factory defaults');
+
+    // Phase 2.5: Log out user instead of silently logging in as demo admin without a password
+    logoutUser();
   };
 
   const logReportView = (reportName: string) => {
