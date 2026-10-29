@@ -173,7 +173,9 @@ export const generateExcelAuditReport = async ({
       let totalValuationCost = 0;
 
       stock.forEach((s) => {
-        const valCost = s.inStock * (s.unitCost || Math.round(s.cashPrice * 0.85));
+        const valCost = s.costLayers && s.costLayers.length > 0
+          ? s.costLayers.reduce((sum, l) => sum + l.remainingQty * l.unitCost, 0)
+          : s.inStock * (s.unitCost || Math.round(s.cashPrice * 0.85));
         totalQty += s.inStock;
         totalValuationCost += valCost;
 
@@ -251,7 +253,9 @@ export const generateExcelAuditReport = async ({
         const cost = s.unitCost || Math.round(s.cashPrice * 0.85);
         const landed = s.landedCost || 0;
         const totalUnitCost = cost + landed;
-        const extFifo = s.inStock * totalUnitCost;
+        const extFifo = s.costLayers && s.costLayers.length > 0
+          ? s.costLayers.reduce((sum, l) => sum + l.remainingQty * (l.unitCost + landed), 0)
+          : s.inStock * totalUnitCost;
         const extRetail = s.inStock * s.cashPrice;
 
         totalFifoValue += extFifo;
@@ -385,7 +389,9 @@ export const generateExcelAuditReport = async ({
       filteredPayments.forEach((p) => {
         const agr = agreements.find((a) => a.id === p.agreementId);
         const net = p.amountPaid + p.lateFee - p.discount;
-        totalCollected += net;
+        if (!p.isReversed) {
+          totalCollected += net;
+        }
 
         sheetData.push([
           p.receiptNumber,
@@ -461,7 +467,7 @@ export const generateExcelAuditReport = async ({
         'Item Model',
         'Qty Received',
         'Unit Cost (PKR)',
-        'Total Payable Amount (PKR)',
+        'Total Purchase Cost (PKR)',
       ]);
 
       let totalPurchases = 0;

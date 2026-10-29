@@ -79,6 +79,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [lateFee, setLateFee] = useState<number>(0);
   const [discount, setDiscount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Bank Transfer' | 'JazzCash' | 'EasyPaisa'>('Cash');
+  const [paymentDate, setPaymentDate] = useState<string>(todayLocal());
   const [collectorName, setCollectorName] = useState(settings.proprietorName || 'Manager');
   const [notes, setNotes] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -124,6 +125,17 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       return;
     }
 
+    const today = todayLocal();
+    if (paymentDate > today) {
+      setValidationError('Payment date cannot be in the future.');
+      return;
+    }
+    const agrStartDate = selectedAgreement.saleDate || selectedAgreement.startDate;
+    if (agrStartDate && paymentDate < agrStartDate) {
+      setValidationError(`Payment date cannot be earlier than agreement date (${agrStartDate}).`);
+      return;
+    }
+
     try {
       const newPayment = onRecordPayment({
         agreementId: selectedAgreement.id,
@@ -132,7 +144,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         lateFee,
         discount,
         paymentMethod,
-        date: todayLocal(),
+        date: paymentDate,
         collectorName,
         notes,
       });
@@ -353,8 +365,22 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
               </div>
 
-              {/* Collector & Notes */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {/* Payment Date, Collector & Notes */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-text mb-1">
+                    Payment Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    max={todayLocal()}
+                    min={selectedAgreement?.saleDate || selectedAgreement?.startDate}
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    className="m3-input p-1.5 text-xs font-mono-tabular"
+                  />
+                </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-text mb-1">
                     Received By / Staff Name
@@ -369,13 +395,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-text mb-1">
-                    Notes / Receipt Remarks
+                    Notes / Remarks
                   </label>
                   <input
                     type="text"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="e.g. Paid at showroom counter"
+                    placeholder="e.g. Paid at showroom"
                     className="m3-input p-1.5 text-xs"
                   />
                 </div>

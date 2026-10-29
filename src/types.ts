@@ -60,6 +60,7 @@ export interface StockItem {
   purchaseDate?: string;
   imageUrl?: string;
   specifications?: string;
+  costLayers?: { quantity: number; unitCost: number; remainingQty: number }[];
 }
 
 export interface StockReceipt {
@@ -118,6 +119,7 @@ export interface Agreement {
   itemSerial: string;
   unitCost: number; // Stored actual inventory purchase cost for exact COGS and Gross Margin (Shop Kareed)
   purchaseDate?: string; // Date shop purchased item
+  saleDate?: string; // Date contract/sale booked & down payment received (drives cashbook and reports)
   deliveryDate?: string; // Date item given / dispatched to customer
   cashPrice: number;
   interestPercentage?: number; // Manual interest / profit percentage entered e.g. 15% or 20%
@@ -164,11 +166,59 @@ export interface PaymentReversal {
   reason: string;
 }
 
+export const CASHBOOK_MANUAL_IN_CATEGORIES = [
+  'Capital In',
+  'Misc Income',
+] as const;
+
+export const CASHBOOK_MANUAL_OUT_CATEGORIES = [
+  'Shop Rent',
+  'Utility Bills',
+  'Electricity Bill',
+  'Electricity / Utilities',
+  'Staff Salary',
+  'Staff Salaries',
+  'Tea & Refreshment',
+  'Fuel / Travel',
+  'Misc Expense',
+] as const;
+
+export const CASHBOOK_SYSTEM_CATEGORIES = [
+  'Instalment Recovery',
+  'Down Payment',
+  'Recovery Collection Inflow',
+  'Stock Purchase',
+  'Supplier Payment',
+  'Refund Reversal',
+] as const;
+
+export const CASHBOOK_IN_CATEGORIES = [
+  ...CASHBOOK_MANUAL_IN_CATEGORIES,
+  'Down Payment',
+  'Instalment Recovery',
+  'Recovery Collection Inflow',
+] as const;
+
+export const CASHBOOK_OUT_CATEGORIES = [
+  ...CASHBOOK_MANUAL_OUT_CATEGORIES,
+  'Stock Purchase',
+  'Supplier Payment',
+  'Refund Reversal',
+] as const;
+
+export const CASHBOOK_CATEGORIES = [
+  ...CASHBOOK_MANUAL_IN_CATEGORIES,
+  ...CASHBOOK_MANUAL_OUT_CATEGORIES,
+  ...CASHBOOK_SYSTEM_CATEGORIES,
+] as const;
+
+export type CashBookCategory = typeof CASHBOOK_CATEGORIES[number];
+
 export interface CashBookEntry {
   id: string;
   date: string;
   type: 'in' | 'out';
-  category: 'Instalment Recovery' | 'Down Payment' | 'Stock Purchase' | 'Shop Rent' | 'Utility Bills' | 'Staff Salary' | 'Refund Reversal' | 'Misc Expense' | 'Capital In';
+  category: CashBookCategory;
   amount: number;
   referenceNumber: string;
   description: string;

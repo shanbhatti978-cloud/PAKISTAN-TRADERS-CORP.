@@ -12,7 +12,13 @@ import {
   ArrowUpDown,
   RefreshCw,
 } from 'lucide-react';
-import { CashBookEntry, ShopSettings } from '../types';
+import {
+  CashBookEntry,
+  ShopSettings,
+  CASHBOOK_MANUAL_IN_CATEGORIES,
+  CASHBOOK_MANUAL_OUT_CATEGORIES,
+  CashBookCategory,
+} from '../types';
 import { formatDateDDMMYYYY } from '../utils/formatters';
 import { ExpandableSearch } from './ExpandableSearch';
 import { todayLocal } from '../utils/dates';
@@ -397,7 +403,10 @@ export const CashbookView: React.FC<CashbookViewProps> = ({
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setType('in')}
+                    onClick={() => {
+                      setType('in');
+                      setCategory(CASHBOOK_MANUAL_IN_CATEGORIES[0]);
+                    }}
                     className={`p-2.5 rounded-xl font-bold border text-center transition-all ${
                       type === 'in'
                         ? 'bg-primary-container text-on-primary-container border-primary'
@@ -408,7 +417,10 @@ export const CashbookView: React.FC<CashbookViewProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setType('out')}
+                    onClick={() => {
+                      setType('out');
+                      setCategory(CASHBOOK_MANUAL_OUT_CATEGORIES[0]);
+                    }}
                     className={`p-2.5 rounded-xl font-bold border text-center transition-all ${
                       type === 'out'
                         ? 'bg-danger/15 text-danger border-danger'
@@ -437,17 +449,14 @@ export const CashbookView: React.FC<CashbookViewProps> = ({
                 <label className="block font-semibold mb-1 text-text">Category</label>
                 <select
                   value={category}
-                  onChange={(e) => setCategory(e.target.value as any)}
+                  onChange={(e) => setCategory(e.target.value as CashBookCategory)}
                   className="m3-input p-2 text-xs font-semibold"
                 >
-                  <option value="Shop Rent">Shop Rent</option>
-                  <option value="Electricity Bill">Electricity Bill</option>
-                  <option value="Staff Salary">Staff Salary</option>
-                  <option value="Tea & Refreshment">Tea & Refreshment</option>
-                  <option value="Fuel / Travel">Fuel / Travel</option>
-                  <option value="Supplier Payment">Supplier Payment</option>
-                  <option value="Recovery Collection Inflow">Recovery Collection Inflow</option>
-                  <option value="Misc Expense">Misc Expense</option>
+                  {(type === 'in' ? CASHBOOK_MANUAL_IN_CATEGORIES : CASHBOOK_MANUAL_OUT_CATEGORIES).map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
                 </select>
               </div>
 

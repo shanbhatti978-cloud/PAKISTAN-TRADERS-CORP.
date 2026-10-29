@@ -322,7 +322,7 @@ export async function generateAgreementContractPDF(
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'normal');
   const termsText = [
-    '1. The item remains the sole property of Pakistan Trader Corporation until all installments are paid in full.',
+    `1. The item remains the sole property of ${settings.shopName || 'Pakistan Trader Corporation'} until all installments are paid in full.`,
     '2. The purchaser agrees to pay each monthly installment on or before the due date specified above.',
     '3. Failure to pay 2 consecutive installments entitles the seller to repossess the item without prior court notice.',
     '4. Guarantors pledge joint personal responsibility to clear outstanding balance in case of default by purchaser.',
@@ -572,7 +572,7 @@ export async function generateBusinessReportPDF(
   y = doc.internal.pageSize.getHeight() - 15;
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
-  doc.text('Official Pakistan Trader Corporation Executive Business Report', pageWidth / 2, y, { align: 'center' });
+  doc.text(`Official ${settings.shopName || 'Pakistan Trader Corporation'} Executive Business Report`, pageWidth / 2, y, { align: 'center' });
 
   doc.save(`Executive_Report_${summary.startDate}_to_${summary.endDate}.pdf`);
 }
@@ -617,7 +617,7 @@ export async function generateComprehensiveAuditReportPDF(
   doc.setFont('helvetica', 'normal');
   doc.text(`${settings.address}, ${settings.city} | Phone: ${settings.phone}`, pageWidth / 2, 18, { align: 'center' });
   doc.text(`STORE AUDIT REPORT | Filter Date: ${formatDateDDMMYYYY(startDate)} to ${formatDateDDMMYYYY(endDate)}`, pageWidth / 2, 23, { align: 'center' });
-  doc.text(`Generated: ${new Date().toLocaleString()} | Mode: Standalone Stored-Cost Audit Ledger`, pageWidth / 2, 28, { align: 'center' });
+  doc.text(`Generated: ${formatDateDDMMYYYY(todayLocal())} | Mode: Standalone Stored-Cost Audit Ledger`, pageWidth / 2, 28, { align: 'center' });
 
   let y = 40;
   doc.setTextColor(15, 23, 42);
@@ -791,7 +791,7 @@ export async function generateComprehensiveAuditReportPDF(
     doc.setPage(i);
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184);
-    doc.text(`Page ${i} of ${pageCount} | PAKISTAN TRADER CORPORATION Official Audit Record`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    doc.text(`Page ${i} of ${pageCount} | ${(settings.shopName || 'Pakistan Trader Corporation').toUpperCase()} Official Audit Record`, pageWidth / 2, pageHeight - 10, { align: 'center' });
   }
 
   doc.save(`${reportType.toLowerCase()}_${startDate}_to_${endDate}.pdf`);
@@ -818,14 +818,18 @@ export async function generateCustomerPaymentLedgerPDF(
 
   const custAgreements = agreements.filter((a) => a.customerId === customer.id);
   const custPayments = payments.filter(
-    (p) => !p.isReversed && (p.customerId === customer.id || custAgreements.some((a) => a.id === p.agreementId))
+    (p) => p.customerId === customer.id || custAgreements.some((a) => a.id === p.agreementId)
   );
 
-  // Financial aggregates
+  // Financial aggregates (active payments only)
+  const activePayments = custPayments.filter((p) => !p.isReversed);
   const totalAgreedValue = custAgreements.reduce((sum, a) => sum + a.totalInstalmentPrice, 0);
   const totalDownPayments = custAgreements.reduce((sum, a) => sum + a.downPayment, 0);
-  const totalInstallmentsPaid = custPayments.reduce((sum, p) => sum + p.amountPaid, 0);
-  const totalPaidToDate = totalDownPayments + totalInstallmentsPaid;
+  const totalInstallmentsPaid = activePayments.reduce((sum, p) => sum + p.amountPaid, 0);
+  const totalLateFeesPaid = activePayments.reduce((sum, p) => sum + (p.lateFee || 0), 0);
+  const totalDiscountsGiven = activePayments.reduce((sum, p) => sum + (p.discount || 0), 0);
+  const totalNetCashPaid = totalInstallmentsPaid + totalLateFeesPaid - totalDiscountsGiven;
+  const totalPaidToDate = totalDownPayments + totalNetCashPaid;
   const totalOutstandingBalance = custAgreements.reduce((sum, a) => sum + a.remainingBalance, 0);
   const totalOverdue = custAgreements.reduce((sum, a) => {
     return (
@@ -849,7 +853,7 @@ export async function generateCustomerPaymentLedgerPDF(
   doc.setFont('helvetica', 'normal');
   doc.text(`${settings.address}, ${settings.city} | Ph: ${settings.phone}`, pageWidth / 2, 17, { align: 'center' });
   doc.text(`${settings.regNumber} | Official Customer Accounting & Payment Ledger`, pageWidth / 2, 22, { align: 'center' });
-  doc.text(`Generated: ${new Date().toLocaleString()} | Account Status: ${customer.rating.toUpperCase()}`, pageWidth / 2, 27, { align: 'center' });
+  doc.text(`Generated: ${formatDateDDMMYYYY(todayLocal())} | Account Status: ${customer.rating.toUpperCase()}`, pageWidth / 2, 27, { align: 'center' });
 
   let y = 36;
 
@@ -1018,15 +1022,17 @@ export async function generateCustomerPaymentLedgerPDF(
   doc.setFillColor(241, 245, 249);
   doc.rect(14, y, pageWidth - 28, 5.5, 'F');
   doc.setTextColor(15, 23, 42);
-  doc.setFontSize(7.5);
+  doc.setFontSize(7);
   doc.setFont('helvetica', 'bold');
   doc.text('Receipt #', 16, y + 3.8);
-  doc.text('Date', 42, y + 3.8);
-  doc.text('Agreement #', 65, y + 3.8);
-  doc.text('Slot(s)', 95, y + 3.8);
-  doc.text('Method', 120, y + 3.8);
-  doc.text('Collector', 145, y + 3.8);
-  doc.text('Amount Paid', pageWidth - 16, y + 3.8, { align: 'right' });
+  doc.text('Date', 38, y + 3.8);
+  doc.text('Agreement #', 58, y + 3.8);
+  doc.text('Slot(s)', 82, y + 3.8);
+  doc.text('Mode', 104, y + 3.8);
+  doc.text('Amount', 122, y + 3.8);
+  doc.text('Late Fee', 144, y + 3.8);
+  doc.text('Discount', 164, y + 3.8);
+  doc.text('Net Paid', pageWidth - 16, y + 3.8, { align: 'right' });
 
   y += 6.5;
 
@@ -1038,33 +1044,61 @@ export async function generateCustomerPaymentLedgerPDF(
     y += 7;
   } else {
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
+    doc.setFontSize(7);
     doc.setTextColor(15, 23, 42);
 
     custPayments.forEach((p) => {
       if (y > pageHeight - 35) { doc.addPage(); y = 20; }
 
-      doc.text(p.receiptNumber, 16, y);
-      doc.text(formatDateDDMMYYYY(p.date), 42, y);
+      const isRev = !!p.isReversed;
+      const net = p.amountPaid + (p.lateFee || 0) - (p.discount || 0);
+
+      if (isRev) {
+        doc.setTextColor(220, 38, 38);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${p.receiptNumber} [REV]`, 16, y);
+      } else {
+        doc.setTextColor(15, 23, 42);
+        doc.setFont('helvetica', 'normal');
+        doc.text(p.receiptNumber, 16, y);
+      }
+
+      doc.setFont('helvetica', 'normal');
+      doc.text(formatDateDDMMYYYY(p.date), 38, y);
       
       const agr = custAgreements.find((a) => a.id === p.agreementId);
-      doc.text(agr?.agreementNumber || p.agreementId, 65, y);
-      doc.text(p.installmentNumbers?.length > 0 ? `#${p.installmentNumbers.join(', #')}` : 'Slot', 95, y);
-      doc.text(p.paymentMethod || 'Cash', 120, y);
-      doc.text((p.collectorName || 'Staff').substring(0, 15), 145, y);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${settings.currencySymbol} ${p.amountPaid.toLocaleString()}`, pageWidth - 16, y, { align: 'right' });
+      doc.text(agr?.agreementNumber || p.agreementId, 58, y);
+      doc.text(p.installmentNumbers?.length > 0 ? `#${p.installmentNumbers.join(', #')}` : 'Slot', 82, y);
+      doc.text(p.paymentMethod || 'Cash', 104, y);
+      doc.text(`${settings.currencySymbol} ${p.amountPaid.toLocaleString()}`, 122, y);
+      doc.text(p.lateFee > 0 ? `+${p.lateFee.toLocaleString()}` : '0', 144, y);
+      doc.text(p.discount > 0 ? `-${p.discount.toLocaleString()}` : '0', 164, y);
+
+      if (isRev) {
+        doc.setTextColor(220, 38, 38);
+        doc.setFont('helvetica', 'bold');
+        doc.text('[REVERSED]', pageWidth - 16, y, { align: 'right' });
+        doc.setDrawColor(220, 38, 38);
+        doc.line(16, y - 1, pageWidth - 16, y - 1);
+      } else {
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(15, 23, 42);
+        doc.text(`${settings.currencySymbol} ${net.toLocaleString()}`, pageWidth - 16, y, { align: 'right' });
+      }
+
       doc.setFont('helvetica', 'normal');
+      doc.setTextColor(15, 23, 42);
 
       y += 5;
     });
 
     // Subtotal Row for Payments
     doc.setFillColor(241, 245, 249);
-    doc.rect(14, y - 1, pageWidth - 28, 5, 'F');
+    doc.rect(14, y - 1, pageWidth - 28, 5.5, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.text('Total Installments Recovered:', 16, y + 2.5);
-    doc.text(`${settings.currencySymbol} ${totalInstallmentsPaid.toLocaleString()}`, pageWidth - 16, y + 2.5, { align: 'right' });
+    doc.setFontSize(7.5);
+    doc.text('Total Net Recovered (Active Receipts):', 16, y + 2.8);
+    doc.text(`${settings.currencySymbol} ${totalNetCashPaid.toLocaleString()}`, pageWidth - 16, y + 2.8, { align: 'right' });
     y += 8;
   }
 
@@ -1163,7 +1197,7 @@ export async function generateCustomerPaymentLedgerPDF(
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(100, 116, 139);
   doc.text(
-    'Verification Note: This is an official computer-generated account statement. Payments are recorded under Pakistan Trader Corporation instalment terms. For discrepancies, please present original payment receipts within 7 days of statement generation.',
+    `Verification Note: This is an official computer-generated account statement. Payments are recorded under ${settings.shopName || 'Pakistan Trader Corporation'} instalment terms. For discrepancies, please present original payment receipts within 7 days of statement generation.`,
     14,
     y,
     { maxWidth: pageWidth - 28 }

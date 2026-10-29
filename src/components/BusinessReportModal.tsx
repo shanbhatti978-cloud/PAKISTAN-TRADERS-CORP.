@@ -39,6 +39,7 @@ import {
 import { generateComprehensiveAuditReportPDF } from '../utils/pdfGenerator';
 import { generateExcelAuditReport, ReportType } from '../utils/excelGenerator';
 import { formatDateDDMMYYYY } from '../utils/formatters';
+import { todayLocal } from '../utils/dates';
 
 interface BusinessReportModalProps {
   payments: Payment[];
@@ -71,35 +72,69 @@ export const BusinessReportModal: React.FC<BusinessReportModalProps> = ({
     onLogReportView?.('Business Audit & PnL Financial Report');
   }, []);
   const [activeTab, setActiveTab] = useState<'profit_analysis' | 'export_reports'>('profit_analysis');
-  const [startDate, setStartDate] = useState('2026-01-01');
-  const [endDate, setEndDate] = useState('2026-12-31');
+
+  // Compute dynamic presets from todayLocal()
+  const todayStr = todayLocal();
+  const [currY, currM] = todayStr.split('-').map(Number);
+  const formatYMD = (y: number, m: number, d: number) =>
+    `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+  const thisMonthStart = formatYMD(currY, currM, 1);
+  const thisMonthEnd = formatYMD(currY, currM, new Date(currY, currM, 0).getDate());
+
+  const lastMonthDate = new Date(currY, currM - 2, 1);
+  const lastMonthY = lastMonthDate.getFullYear();
+  const lastMonthM = lastMonthDate.getMonth() + 1;
+  const lastMonthStart = formatYMD(lastMonthY, lastMonthM, 1);
+  const lastMonthEnd = formatYMD(lastMonthY, lastMonthM, new Date(lastMonthY, lastMonthM, 0).getDate());
+
+  const ytdStart = formatYMD(currY, 1, 1);
+  const ytdEnd = thisMonthEnd;
+
+  const allDates: string[] = [];
+  agreements.forEach((a) => {
+    if (a.saleDate) allDates.push(a.saleDate);
+    if (a.startDate) allDates.push(a.startDate);
+  });
+  payments.forEach((p) => {
+    if (p.date) allDates.push(p.date);
+  });
+  cashbook.forEach((c) => {
+    if (c.date) allDates.push(c.date);
+  });
+
+  const allTimeMin = allDates.length > 0 ? allDates.reduce((min, d) => d < min ? d : min, allDates[0]) : formatYMD(currY - 1, 1, 1);
+  const allTimeMax = allDates.length > 0 ? allDates.reduce((max, d) => d > max ? d : max, allDates[0]) : formatYMD(currY + 1, 12, 31);
+
+  // Default period = current month
+  const [startDate, setStartDate] = useState(thisMonthStart);
+  const [endDate, setEndDate] = useState(thisMonthEnd);
   const [calculationScope, setCalculationScope] = useState<'period' | 'all_time'>('period');
   const [reportType, setReportType] = useState<ReportType>('GROSS_MARGIN_REPORT');
 
   // Quick preset helper
-  const handleSetPreset = (preset: 'this_month' | 'ytd' | 'all_time') => {
+  const handleSetPreset = (preset: 'this_month' | 'last_month' | 'ytd' | 'all_time') => {
     if (preset === 'this_month') {
-      setStartDate('2026-09-01');
-      setEndDate('2026-09-30');
+      setStartDate(thisMonthStart);
+      setEndDate(thisMonthEnd);
+      setCalculationScope('period');
+    } else if (preset === 'last_month') {
+      setStartDate(lastMonthStart);
+      setEndDate(lastMonthEnd);
       setCalculationScope('period');
     } else if (preset === 'ytd') {
-      setStartDate('2026-01-01');
-      setEndDate('2026-12-31');
+      setStartDate(ytdStart);
+      setEndDate(ytdEnd);
       setCalculationScope('period');
     } else {
-      setStartDate('2025-01-01');
-      setEndDate('2027-12-31');
+      setStartDate(allTimeMin);
+      setEndDate(allTimeMax);
       setCalculationScope('all_time');
     }
   };
 
   // 1. FILTERED CALCULATIONS (Based on Selected Scope)
   const isPeriodScope = calculationScope === 'period';
-
-  // Agreements sold in scope
-  const targetAgreements = isPeriodScope
-    ? agreements.filter((a) => a.startDate >= startDate && a.startDate <= endDate)
-    : agreements;
 
   // Payments collected in scope
   const targetPayments = isPeriodScope
@@ -111,19 +146,64 @@ export const BusinessReportModal: React.FC<BusinessReportModalProps> = ({
     ? cashbook.filter((cb) => cb.date >= startDate && cb.date <= endDate)
     : cashbook;
 
-  // --- A. Total Collected Payments ---
-  const totalDownPayments = targetAgreements.reduce((sum, a) => sum + a.downPayment, 0);
-  const totalInstallmentCollections = targetPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+  // Build Itemized Sold Products Profit Ledger on a unified period basis
+  const itemizedSoldLedger = agreements
+    .map((a) => {
+      const cust = customers.find((c) => c.id === a.customerId);
+      const effectiveSaleDate = a.saleDate || a.startDate;
+      const soldInScope = !isPeriodScope || (effectiveSaleDate >= startDate && effectiveSaleDate <= endDate);
+
+      const aPayments = isPeriodScope
+        ? targetPayments.filter((p) => p.agreementId === a.id)
+        : payments.filter((p) => p.agreementId === a.id && !p.isReversed);
+      const paymentsCollected = aPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+
+      // Only include contract down payment if sold in scope
+      const downPaymentInScope = soldInScope ? a.downPayment : 0;
+      const totalCollected = downPaymentInScope + paymentsCollected;
+
+      // Only count product cost if sold in scope
+      const itemCost = soldInScope ? (a.unitCost || Math.round(a.cashPrice * 0.85)) : 0;
+      const itemRealizedProfit = totalCollected - itemCost;
+      const itemTotalMargin = soldInScope ? (a.totalInstalmentPrice - itemCost) : 0;
+      const contractPriceInScope = soldInScope ? a.totalInstalmentPrice : 0;
+
+      const recoveryProgressPct = a.totalInstalmentPrice > 0
+        ? Math.min(100, Math.round(((a.downPayment + (payments.filter((p) => p.agreementId === a.id && !p.isReversed).reduce((sum, p) => sum + p.amountPaid, 0))) / a.totalInstalmentPrice) * 100))
+        : 0;
+
+      return {
+        agreementNumber: a.agreementNumber,
+        customerName: cust?.fullName || 'Customer',
+        customerCode: a.customerCode,
+        itemName: a.itemName,
+        itemSerial: a.itemSerial,
+        startDate: a.startDate,
+        saleDate: effectiveSaleDate,
+        originalCost: itemCost,
+        downPayment: downPaymentInScope,
+        paymentsCollected,
+        totalCollected,
+        realizedProfit: itemRealizedProfit,
+        contractPrice: contractPriceInScope,
+        totalMargin: itemTotalMargin,
+        remainingBalance: a.remainingBalance,
+        recoveryProgressPct,
+        status: a.status,
+        hasActivity: soldInScope || paymentsCollected > 0,
+      };
+    })
+    .filter((row) => !isPeriodScope || row.hasActivity);
+
+  // --- A. Total Collected Payments (Unified with Ledger Rows) ---
+  const totalDownPayments = itemizedSoldLedger.reduce((sum, row) => sum + row.downPayment, 0);
+  const totalInstallmentCollections = itemizedSoldLedger.reduce((sum, row) => sum + row.paymentsCollected, 0);
   const totalCollectedPayments = totalDownPayments + totalInstallmentCollections;
 
   // --- B. Original Cost of Sold Items ---
-  const totalOriginalCostSold = targetAgreements.reduce((sum, a) => {
-    const cost = a.unitCost || Math.round(a.cashPrice * 0.85);
-    return sum + cost;
-  }, 0);
-
-  const totalContractSellingValue = targetAgreements.reduce((sum, a) => sum + a.totalInstalmentPrice, 0);
-  const totalRemainingToCollect = targetAgreements.reduce((sum, a) => sum + a.remainingBalance, 0);
+  const totalOriginalCostSold = itemizedSoldLedger.reduce((sum, row) => sum + row.originalCost, 0);
+  const totalContractSellingValue = itemizedSoldLedger.reduce((sum, row) => sum + row.contractPrice, 0);
+  const totalRemainingToCollect = itemizedSoldLedger.reduce((sum, row) => sum + row.remainingBalance, 0);
 
   // --- C. Gross Realized Cash Profit ---
   const grossRealizedProfit = totalCollectedPayments - totalOriginalCostSold;
@@ -133,65 +213,56 @@ export const BusinessReportModal: React.FC<BusinessReportModalProps> = ({
 
   const totalContractedProfit = totalContractSellingValue - totalOriginalCostSold;
 
-  // --- D. General Shop Expenses ---
+  // --- Late Fees & Discounts in Scope ---
+  const totalLateFees = targetPayments.reduce((sum, p) => sum + (p.lateFee || 0), 0);
+  const totalDiscounts = targetPayments.reduce((sum, p) => sum + (p.discount || 0), 0);
+
+  // --- D. General Shop Operating Expenses (Strictly Exclude Capital & Reversals) ---
+  const nonOperatingCategories = [
+    'Shop Rent',
+    'Utility Bills',
+    'Staff Salary',
+    'Tea & Refreshment',
+    'Fuel / Travel',
+    'Stock Purchase',
+    'Refund Reversal',
+    'Capital In',
+    'Down Payment',
+    'Instalment Recovery',
+    'Misc Income',
+  ];
+
   const rentExpenses = targetCashbook
     .filter((cb) => cb.type === 'out' && cb.category === 'Shop Rent')
     .reduce((sum, cb) => sum + cb.amount, 0);
 
   const utilityExpenses = targetCashbook
-    .filter((cb) => cb.type === 'out' && cb.category === 'Utility Bills')
+    .filter((cb) => cb.type === 'out' && (cb.category === 'Utility Bills' || (cb.category as any) === 'Electricity Bill'))
     .reduce((sum, cb) => sum + cb.amount, 0);
 
   const salaryExpenses = targetCashbook
     .filter((cb) => cb.type === 'out' && cb.category === 'Staff Salary')
     .reduce((sum, cb) => sum + cb.amount, 0);
 
-  const miscExpenses = targetCashbook
-    .filter((cb) => cb.type === 'out' && !['Shop Rent', 'Utility Bills', 'Staff Salary', 'Stock Purchase'].includes(cb.category))
+  const teaExpenses = targetCashbook
+    .filter((cb) => cb.type === 'out' && cb.category === 'Tea & Refreshment')
     .reduce((sum, cb) => sum + cb.amount, 0);
 
-  const totalGeneralShopExpenses = rentExpenses + utilityExpenses + salaryExpenses + miscExpenses;
+  const fuelExpenses = targetCashbook
+    .filter((cb) => cb.type === 'out' && cb.category === 'Fuel / Travel')
+    .reduce((sum, cb) => sum + cb.amount, 0);
 
-  // --- E. Net Business Profit ---
-  const netBusinessProfit = grossRealizedProfit - totalGeneralShopExpenses;
-  const netProfitPct = totalCollectedPayments > 0
-    ? ((netBusinessProfit / totalCollectedPayments) * 100).toFixed(1)
+  const miscExpenses = targetCashbook
+    .filter((cb) => cb.type === 'out' && !nonOperatingCategories.includes(cb.category) && (cb.category as any) !== 'Electricity Bill')
+    .reduce((sum, cb) => sum + cb.amount, 0);
+
+  const totalGeneralShopExpenses = rentExpenses + utilityExpenses + salaryExpenses + teaExpenses + fuelExpenses + miscExpenses;
+
+  // --- E. Net Business Profit (Gross Realized + Late Fees - Discounts - Operating Overheads) ---
+  const netBusinessProfit = grossRealizedProfit + totalLateFees - totalDiscounts - totalGeneralShopExpenses;
+  const netMarginOnContractPct = totalContractSellingValue > 0
+    ? ((netBusinessProfit / totalContractSellingValue) * 100).toFixed(1)
     : '0';
-
-  // Itemized Sold Products Profit Ledger
-  const itemizedSoldLedger = targetAgreements.map((a) => {
-    const cust = customers.find((c) => c.id === a.customerId);
-    const itemCost = a.unitCost || Math.round(a.cashPrice * 0.85);
-    const itemPayments = payments
-      .filter((p) => p.agreementId === a.id && !p.isReversed)
-      .reduce((sum, p) => sum + p.amountPaid, 0);
-
-    const itemTotalCollected = a.downPayment + itemPayments;
-    const itemRealizedProfit = itemTotalCollected - itemCost;
-    const itemTotalMargin = a.totalInstalmentPrice - itemCost;
-    const recoveryProgressPct = a.totalInstalmentPrice > 0
-      ? Math.min(100, Math.round((itemTotalCollected / a.totalInstalmentPrice) * 100))
-      : 0;
-
-    return {
-      agreementNumber: a.agreementNumber,
-      customerName: cust?.fullName || 'Customer',
-      customerCode: a.customerCode,
-      itemName: a.itemName,
-      itemSerial: a.itemSerial,
-      startDate: a.startDate,
-      originalCost: itemCost,
-      downPayment: a.downPayment,
-      paymentsCollected: itemPayments,
-      totalCollected: itemTotalCollected,
-      realizedProfit: itemRealizedProfit,
-      contractPrice: a.totalInstalmentPrice,
-      totalMargin: itemTotalMargin,
-      remainingBalance: a.remainingBalance,
-      recoveryProgressPct,
-      status: a.status,
-    };
-  });
 
   // Export PDF Handler
   const handleExportPdf = () => {
@@ -311,14 +382,21 @@ export const BusinessReportModal: React.FC<BusinessReportModalProps> = ({
               className="px-3 py-1.5 rounded-lg text-caption font-bold border transition-all"
               style={{ backgroundColor: 'var(--theme-surface-input)', borderColor: 'var(--theme-surface-border)', color: 'var(--theme-text-primary)' }}
             >
-              Sep 2026
+              This Month
+            </button>
+            <button
+              onClick={() => handleSetPreset('last_month')}
+              className="px-3 py-1.5 rounded-lg text-caption font-bold border transition-all"
+              style={{ backgroundColor: 'var(--theme-surface-input)', borderColor: 'var(--theme-surface-border)', color: 'var(--theme-text-primary)' }}
+            >
+              Last Month
             </button>
             <button
               onClick={() => handleSetPreset('ytd')}
               className="px-3 py-1.5 rounded-lg text-caption font-bold border transition-all"
               style={{ backgroundColor: 'var(--theme-surface-input)', borderColor: 'var(--theme-surface-border)', color: 'var(--theme-text-primary)' }}
             >
-              YTD 2026
+              YTD
             </button>
             <button
               onClick={() => handleSetPreset('all_time')}
@@ -448,14 +526,24 @@ export const BusinessReportModal: React.FC<BusinessReportModalProps> = ({
 
                 </div>
 
-                {/* Second Level: Subtracting General Shop Expenses */}
+                {/* Second Level: Adjustments & Operating Overheads */}
                 <div className="mt-4 pt-3.5 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-body-sm" style={{ borderColor: 'var(--theme-surface-border)' }}>
-                  <div className="flex items-center gap-2 font-medium" style={{ color: 'var(--theme-text-primary)' }}>
-                    <span className="text-text-muted font-bold">Operating Deductions:</span>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-medium" style={{ color: 'var(--theme-text-primary)' }}>
+                    <span className="text-text-muted font-bold">Adjustments & Overheads:</span>
+                    {totalLateFees > 0 && (
+                      <span className="font-mono-tabular font-bold text-success">
+                        + {settings.currencySymbol} {totalLateFees.toLocaleString()} (Late Fees)
+                      </span>
+                    )}
+                    {totalDiscounts > 0 && (
+                      <span className="font-mono-tabular font-bold text-danger">
+                        — {settings.currencySymbol} {totalDiscounts.toLocaleString()} (Discounts)
+                      </span>
+                    )}
                     <span className="font-mono-tabular font-bold" style={{ color: 'var(--theme-primary)' }}>
                       — {settings.currencySymbol} {totalGeneralShopExpenses.toLocaleString()}
                     </span>
-                    <span className="text-text-muted text-caption font-medium">(Rent, Utilities, Staff Salaries, Misc)</span>
+                    <span className="text-text-muted text-caption font-medium">(Rent, Utilities, Salaries, Overheads)</span>
                   </div>
 
                   <div className="flex items-center gap-2.5">
@@ -495,7 +583,7 @@ export const BusinessReportModal: React.FC<BusinessReportModalProps> = ({
                     {settings.currencySymbol} {totalOriginalCostSold.toLocaleString()}
                   </div>
                   <div className="text-caption text-text-muted font-mono-tabular font-medium">
-                    {targetAgreements.length} Sold Units Issued
+                    {itemizedSoldLedger.length} Sold Units Issued
                   </div>
                 </div>
 
@@ -538,7 +626,7 @@ export const BusinessReportModal: React.FC<BusinessReportModalProps> = ({
                     {settings.currencySymbol} {netBusinessProfit.toLocaleString()}
                   </div>
                   <div className="text-caption text-text-muted font-medium">
-                    Net Margin: <span className="font-bold font-mono-tabular" style={{ color: 'var(--theme-primary)' }}>{netProfitPct}%</span>
+                    Net Margin: <span className="font-bold font-mono-tabular" style={{ color: 'var(--theme-primary)' }}>{netMarginOnContractPct}%</span> of Contract Value
                   </div>
                 </div>
 
@@ -571,12 +659,12 @@ export const BusinessReportModal: React.FC<BusinessReportModalProps> = ({
                     <div className="text-caption text-text-muted p-2.5 rounded-lg border space-y-1 font-medium" style={{ backgroundColor: 'var(--theme-surface-card)', borderColor: 'var(--theme-surface-border)' }}>
                       <div className="flex justify-between">
                         <span>Total Units Issued on Instalments:</span>
-                        <span className="font-bold font-mono-tabular" style={{ color: 'var(--theme-text-primary)' }}>{targetAgreements.length} items</span>
+                        <span className="font-bold font-mono-tabular" style={{ color: 'var(--theme-text-primary)' }}>{itemizedSoldLedger.length} items</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Average Product Purchase Cost:</span>
                         <span className="font-bold font-mono-tabular" style={{ color: 'var(--theme-primary)' }}>
-                          {settings.currencySymbol} {targetAgreements.length > 0 ? Math.round(totalOriginalCostSold / targetAgreements.length).toLocaleString() : '0'}
+                          {settings.currencySymbol} {itemizedSoldLedger.length > 0 ? Math.round(totalOriginalCostSold / itemizedSoldLedger.length).toLocaleString() : '0'}
                         </span>
                       </div>
                     </div>
@@ -608,6 +696,14 @@ export const BusinessReportModal: React.FC<BusinessReportModalProps> = ({
                       <div className="flex justify-between">
                         <span className="text-text-muted">Staff Salaries:</span>
                         <span className="font-bold" style={{ color: 'var(--theme-text-primary)' }}>{settings.currencySymbol} {salaryExpenses.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-text-muted">Tea & Refreshment:</span>
+                        <span className="font-bold" style={{ color: 'var(--theme-text-primary)' }}>{settings.currencySymbol} {teaExpenses.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-text-muted">Fuel / Travel:</span>
+                        <span className="font-bold" style={{ color: 'var(--theme-text-primary)' }}>{settings.currencySymbol} {fuelExpenses.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-text-muted">Misc Overheads:</span>

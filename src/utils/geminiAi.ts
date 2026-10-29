@@ -83,7 +83,10 @@ export async function assessCustomerRisk(params: {
   try {
     const res = await fetch('/api/ai/risk', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-qist-client': 'ptc-app',
+      },
       body: JSON.stringify({
         profession: params.profession || 'Trader / Business',
         monthlyIncome: params.monthlyIncome,
@@ -179,7 +182,10 @@ export async function generateRecoveryMessage(params: RecoveryMessageParams): Pr
   try {
     const res = await fetch('/api/ai/reminder', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-qist-client': 'ptc-app',
+      },
       body: JSON.stringify({
         itemName: params.itemName,
         overdueAmount: params.overdueAmount,

@@ -4,7 +4,37 @@ import { GoogleGenAI } from '@google/genai';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '10kb' }));
+
+// In-memory sliding window rate limiter (30 requests / 60 seconds per IP)
+const rateLimitMap = new Map<string, number[]>();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const MAX_REQUESTS_PER_WINDOW = 30;
+
+function rateLimiter(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW_MS;
+  const timestamps = (rateLimitMap.get(ip) || []).filter((t) => t > windowStart);
+
+  if (timestamps.length >= MAX_REQUESTS_PER_WINDOW) {
+    return res.status(429).json({ error: 'Too many requests. Please slow down.' });
+  }
+
+  timestamps.push(now);
+  rateLimitMap.set(ip, timestamps);
+  next();
+}
+
+function clientAuthCheck(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const clientHeader = req.headers['x-qist-client'];
+  if (clientHeader !== 'ptc-app') {
+    return res.status(403).json({ error: 'Forbidden: Missing or invalid client authorization header.' });
+  }
+  next();
+}
+
+app.use('/api/ai', rateLimiter, clientAuthCheck);
 
 // Initialize GoogleGenAI SDK with server-side environment variable only
 const getGenAIClient = () => {
@@ -21,7 +51,18 @@ app.post('/api/ai/risk', async (req, res) => {
   }
 
   try {
-    const { profession, monthlyIncome, itemPrice, requestedDownPayment, requestedMonths, hasGuarantors } = req.body;
+    const { profession, monthlyIncome, itemPrice, requestedDownPayment, requestedMonths, hasGuarantors } = req.body || {};
+
+    if (
+      (profession !== undefined && (typeof profession !== 'string' || profession.length > 100)) ||
+      typeof monthlyIncome !== 'number' || !Number.isFinite(monthlyIncome) || monthlyIncome < 0 ||
+      typeof itemPrice !== 'number' || !Number.isFinite(itemPrice) || itemPrice <= 0 ||
+      typeof requestedDownPayment !== 'number' || !Number.isFinite(requestedDownPayment) || requestedDownPayment < 0 ||
+      typeof requestedMonths !== 'number' || !Number.isInteger(requestedMonths) || requestedMonths <= 0 || requestedMonths > 120 ||
+      typeof hasGuarantors !== 'boolean'
+    ) {
+      return res.status(400).json({ error: 'Invalid input parameters for credit risk assessment.' });
+    }
 
     const price = Math.max(1, Number(itemPrice) || 0);
     const down = Math.max(0, Number(requestedDownPayment) || 0);
@@ -74,7 +115,20 @@ app.post('/api/ai/reminder', async (req, res) => {
   }
 
   try {
-    const { itemName, overdueAmount, dueDate, daysLate, language, shopName, shopPhone } = req.body;
+    const { itemName, overdueAmount, dueDate, daysLate, language, shopName, shopPhone } = req.body || {};
+
+    const validLangs = ['Roman Urdu', 'Urdu', 'English'];
+    if (
+      typeof itemName !== 'string' || itemName.length > 200 || !itemName.trim() ||
+      typeof overdueAmount !== 'number' || !Number.isFinite(overdueAmount) || overdueAmount < 0 ||
+      typeof dueDate !== 'string' || dueDate.length > 30 ||
+      typeof daysLate !== 'number' || !Number.isInteger(daysLate) || daysLate < 0 ||
+      (language && (!validLangs.includes(language) || typeof language !== 'string')) ||
+      (shopName && (typeof shopName !== 'string' || shopName.length > 100)) ||
+      (shopPhone && (typeof shopPhone !== 'string' || shopPhone.length > 30))
+    ) {
+      return res.status(400).json({ error: 'Invalid input parameters for reminder message generation.' });
+    }
 
     const shop = shopName || 'Pakistan Trader Corporation';
     const phoneLine = shopPhone ? `Shop Contact: ${shopPhone}` : '';

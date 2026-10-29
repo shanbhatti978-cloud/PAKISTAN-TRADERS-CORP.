@@ -33,7 +33,7 @@ import { NavTabId, NAV_ITEMS } from '../config/navigation';
 import { formatDateDDMMYYYY } from '../utils/formatters';
 import { useAppActions } from '../context/AppActionsContext';
 import { ExpandableSearch } from './ExpandableSearch';
-import { todayLocal } from '../utils/dates';
+import { todayLocal, parseLocalDate, toLocalISODate } from '../utils/dates';
 
 interface HomeViewProps {
   agreements: Agreement[];
@@ -68,7 +68,11 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const totalStockCount = stock.reduce((sum, item) => sum + (item.inStock || 0), 0);
 
   const todayPayments = payments.filter((p) => !p.isReversed && p.date === todayStr);
-  const todayCollectedTotal = todayPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+  const todayInstalmentsCollected = todayPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+  const todayNetCashReceived = todayPayments.reduce(
+    (sum, p) => sum + (p.amountPaid + (p.lateFee || 0) - (p.discount || 0)),
+    0
+  );
 
   // Overdue and Due Today slots
   let overdueCount = 0;
@@ -114,8 +118,28 @@ export const HomeView: React.FC<HomeViewProps> = ({
     });
   }, [dueTodaySlots, dueSearchQuery]);
 
-  // Mock 7-day sparkline bar heights
-  const sparklineData = [45, 60, 30, 85, 55, 95, 75];
+  // Real 7-day sparkline bar data from actual payments
+  const sparklineDays = useMemo(() => {
+    const today = parseLocalDate(todayStr);
+    const days: { dateStr: string; total: number; label: string }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+      const dateStr = toLocalISODate(d);
+      const dayTotal = payments
+        .filter((p) => !p.isReversed && p.date === dateStr)
+        .reduce((sum, p) => sum + p.amountPaid, 0);
+      days.push({
+        dateStr,
+        total: dayTotal,
+        label: i === 0 ? 'Today' : `${d.getDate()}/${d.getMonth() + 1}`,
+      });
+    }
+    const maxVal = Math.max(...days.map((d) => d.total), 1);
+    return days.map((d) => ({
+      ...d,
+      heightPercent: d.total === 0 ? 12 : Math.max(15, Math.round((d.total / maxVal) * 100)),
+    }));
+  }, [todayStr, payments]);
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 select-none pb-6">
@@ -135,7 +159,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
                 <Building2 className="w-3.5 h-3.5" />
-                <span>{settings.shopName || 'Pakistan Traders Corporation'}</span>
+                <span>{settings.shopName || 'Pakistan Trader Corporation'}</span>
               </div>
               <span className="text-xs font-mono-tabular text-text-subtle">
                 Date: {todayStr}
@@ -146,11 +170,23 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <span className="text-caption font-semibold text-text-muted block">
                 Today's Realized Recovery
               </span>
-              <div className="text-3xl sm:text-4xl lg:text-5xl font-extrabold font-heading text-text font-mono-tabular mt-1">
-                <span className="text-xl sm:text-2xl text-text-muted mr-1">{settings.currencySymbol}</span>
-                <span className="text-primary">{todayCollectedTotal.toLocaleString()}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                <div className="p-3 rounded-2xl bg-surface-2/60 border border-border/80">
+                  <span className="text-caption text-text-muted font-medium block">Instalments collected</span>
+                  <div className="text-2xl sm:text-3xl font-extrabold font-heading text-text font-mono-tabular mt-0.5">
+                    <span className="text-base text-text-muted mr-1">{settings.currencySymbol}</span>
+                    <span className="text-primary">{todayInstalmentsCollected.toLocaleString()}</span>
+                  </div>
+                </div>
+                <div className="p-3 rounded-2xl bg-surface-2/60 border border-border/80">
+                  <span className="text-caption text-text-muted font-medium block">Cash received (net)</span>
+                  <div className="text-2xl sm:text-3xl font-extrabold font-heading text-text font-mono-tabular mt-0.5">
+                    <span className="text-base text-text-muted mr-1">{settings.currencySymbol}</span>
+                    <span className="text-emerald-600 dark:text-emerald-400">{todayNetCashReceived.toLocaleString()}</span>
+                  </div>
+                </div>
               </div>
-              <p className="text-body-sm text-text-muted mt-1 max-w-md font-medium">
+              <p className="text-body-sm text-text-muted mt-2 max-w-md font-medium">
                 Cash collection & mobile wallets collected from customer installment plans today.
               </p>
             </div>
@@ -168,15 +204,15 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
               {/* Mini Sparkline Chart */}
               <div className="flex items-end gap-1.5 h-10 px-3 py-1 rounded-xl bg-surface-2/60 border border-border">
-                {sparklineData.map((val, idx) => (
+                {sparklineDays.map((d, idx) => (
                   <div
                     key={idx}
                     className="w-2.5 rounded-full transition-all duration-300"
                     style={{
-                      height: `${val}%`,
+                      height: `${d.heightPercent}%`,
                       backgroundColor: idx === 6 ? 'var(--primary)' : 'rgba(100, 116, 139, 0.35)',
                     }}
-                    title={`Day ${idx + 1}`}
+                    title={`${d.label}: ${settings.currencySymbol} ${d.total.toLocaleString()}`}
                   />
                 ))}
               </div>
@@ -268,8 +304,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
               >
                 {overdueCount}
               </div>
-              <span className="text-caption text-text-muted font-medium">
-                {overdueCount > 0 ? 'Late instalments' : 'All clear'}
+              <span className="text-caption text-text-muted font-medium block">
+                {overdueCount > 0
+                  ? `${settings.currencySymbol} ${overdueAmountTotal.toLocaleString()} overdue`
+                  : 'All clear'}
               </span>
             </div>
             <div className="text-caption text-danger font-bold flex items-center gap-0.5">
@@ -416,7 +454,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
                       {customer?.phone && (
                         <a
                           href={`https://wa.me/92${customer.phone.replace(/\D/g, '').slice(-10)}?text=${encodeURIComponent(
-                            `Salam ${customer.fullName}, reminder for installment of Rs. ${unpaidDue.toLocaleString()} due on ${todayStr} for ${agreement.itemName} (${settings.shopName || 'Pakistan Traders'}).`
+                            `Salam ${customer.fullName}, reminder for installment of Rs. ${unpaidDue.toLocaleString()} due on ${todayStr} for ${agreement.itemName} (${settings.shopName || 'Pakistan Trader Corporation'}).`
                           )}`}
                           target="_blank"
                           rel="noreferrer"

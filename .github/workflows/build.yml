@@ -60,6 +60,9 @@ jobs:
       - name: Run type checking and linting
         run: npm run lint
 
+      - name: Run test suite
+        run: TZ=Asia/Karachi npm test
+
       - name: Build production web bundle
         run: npm run build
         env:
@@ -72,10 +75,6 @@ jobs:
           path: dist/
           if-no-files-found: error
           retention-days: 14
-
-      - name: Install Capacitor CLI & Android package
-        run: |
-          npm install --no-save --legacy-peer-deps @capacitor/core @capacitor/cli @capacitor/android
 
       - name: Initialize Android project and sync assets
         run: |

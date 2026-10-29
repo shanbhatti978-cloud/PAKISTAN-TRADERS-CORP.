@@ -39,16 +39,18 @@ export function formatDateDDMMYYYY(dateStr: string | undefined | null): string {
   return dateStr;
 }
 
+import { todayLocal } from './dates';
+
 /**
  * Get current system date in YYYY-MM-DD for HTML date inputs
  */
 export function getCurrentDateISO(): string {
-  return '2026-09-28';
+  return todayLocal();
 }
 
 /**
  * Get current system date formatted in Day-MM-Year (DD-MM-YYYY)
  */
 export function getCurrentDateFormatted(): string {
-  return formatDateDDMMYYYY(getCurrentDateISO());
+  return formatDateDDMMYYYY(todayLocal());
 }

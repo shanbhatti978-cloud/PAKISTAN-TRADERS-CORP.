@@ -17,6 +17,9 @@ import {
   ActivityLedgerEntry,
   PermissionAction,
   LedgerActionType,
+  CASHBOOK_CATEGORIES,
+  CASHBOOK_IN_CATEGORIES,
+  CASHBOOK_OUT_CATEGORIES,
 } from '../types';
 import {
   INITIAL_SHOP_SETTINGS,
@@ -937,53 +940,120 @@ export function useQistStore() {
   // --- RECEIVE STOCK / INVENTORY SHIPMENT ---
   const receiveStock = (params: {
     supplierName: string;
-    purchaseRef: string;
+    purchaseRef?: string;
     receivedDate: string;
     stockItemId?: string;
     name: string;
     category: StockItem['category'];
-    brand: string;
-    model: string;
+    brand?: string;
+    model?: string;
     quantity: number;
     unitCost: number;
     cashPrice: number;
     instalmentPrice: number;
-    minDownPayment: number;
+    minDownPayment?: number;
     serialNumbers: string[];
-    counterLocation: string;
+    counterLocation?: string;
     notes?: string;
   }) => {
     if (!verifyPermission('ADD_ITEM', 'Inventory', 'Receive Stock Shipment')) {
       throw new Error("You don't have permission to add stock or inventory items.");
     }
 
+    // Input Validation (Item 3 Store Validation)
+    if (!Number.isInteger(params.quantity) || params.quantity <= 0) {
+      throw new Error("Quantity must be a positive integer.");
+    }
+    if (typeof params.unitCost !== 'number' || !isFinite(params.unitCost) || params.unitCost < 0) {
+      throw new Error("Unit cost must be a non-negative finite number.");
+    }
+    if (
+      typeof params.cashPrice !== 'number' ||
+      !isFinite(params.cashPrice) ||
+      params.cashPrice < 0 ||
+      typeof params.instalmentPrice !== 'number' ||
+      !isFinite(params.instalmentPrice) ||
+      params.instalmentPrice < 0
+    ) {
+      throw new Error("Retail and instalment prices must be non-negative finite numbers.");
+    }
+    if (params.serialNumbers) {
+      if (params.serialNumbers.length > params.quantity) {
+        throw new Error("Serial numbers count cannot exceed quantity.");
+      }
+      const uniqueSerials = new Set(params.serialNumbers);
+      if (uniqueSerials.size !== params.serialNumbers.length) {
+        throw new Error("Serial numbers in shipment must be unique.");
+      }
+      const existingSerials = new Set<string>();
+      stock.forEach((s) => {
+        if (s.serialNumber) existingSerials.add(s.serialNumber);
+      });
+      stockReceipts.forEach((r) => {
+        r.serialNumbers?.forEach((sn) => existingSerials.add(sn));
+      });
+      for (const sn of params.serialNumbers) {
+        if (existingSerials.has(sn)) {
+          throw new Error(`Serial number ${sn} already exists in inventory.`);
+        }
+      }
+    }
+    if (!params.receivedDate || !/^\d{4}-\d{2}-\d{2}$/.test(params.receivedDate) || isNaN(Date.parse(params.receivedDate))) {
+      throw new Error("Invalid receipt date.");
+    }
+
+    const effectiveName = params.name || (params as any).modelName || 'Stock Item';
+    const effectiveBrand = params.brand || 'General';
+    const effectiveModel = params.model || effectiveName;
+    const effectivePurchaseRef = params.purchaseRef || `PO-${Date.now().toString().slice(-4)}`;
+    const effectiveLocation = params.counterLocation || 'Main Showroom Counter #1';
+    const effectiveMinDown = params.minDownPayment !== undefined ? params.minDownPayment : Math.round(params.cashPrice * 0.2);
+
     let targetItem = stock.find((s) => s.id === params.stockItemId);
     const oldQty = targetItem ? targetItem.inStock : 0;
 
     if (!targetItem) {
       const newStockId = generateSecureId('stock');
+      const initialLayers = [{ quantity: params.quantity, unitCost: params.unitCost, remainingQty: params.quantity }];
       targetItem = {
         id: newStockId,
-        name: params.name,
+        name: effectiveName,
         category: params.category,
-        brand: params.brand,
-        model: params.model,
+        brand: effectiveBrand,
+        model: effectiveModel,
         serialNumber: params.serialNumbers[0] || `SER-${Date.now()}`,
         unitCost: params.unitCost,
+        costLayers: initialLayers,
         cashPrice: params.cashPrice,
         instalmentPrice: params.instalmentPrice,
-        minDownPayment: params.minDownPayment,
+        minDownPayment: effectiveMinDown,
         inStock: params.quantity,
         totalReceived: params.quantity,
         totalIssued: 0,
-        counterLocation: params.counterLocation || 'Main Showroom Counter #1',
+        counterLocation: effectiveLocation,
         status: 'available',
         supplierName: params.supplierName,
-        purchaseRef: params.purchaseRef,
+        purchaseRef: effectivePurchaseRef,
         purchaseDate: params.receivedDate,
       };
       setStock((prev) => [targetItem!, ...prev]);
     } else {
+      const existingLayers = targetItem.costLayers && targetItem.costLayers.length > 0
+        ? [...targetItem.costLayers]
+        : targetItem.inStock > 0
+          ? [{ quantity: targetItem.inStock, unitCost: targetItem.unitCost, remainingQty: targetItem.inStock }]
+          : [];
+
+      existingLayers.push({
+        quantity: params.quantity,
+        unitCost: params.unitCost,
+        remainingQty: params.quantity,
+      });
+
+      const totalRemQty = existingLayers.reduce((sum, l) => sum + l.remainingQty, 0);
+      const totalRemVal = existingLayers.reduce((sum, l) => sum + l.remainingQty * l.unitCost, 0);
+      const newWeightedUnitCost = totalRemQty > 0 ? Math.round(totalRemVal / totalRemQty) : params.unitCost;
+
       setStock((prev) =>
         prev.map((s) =>
           s.id === targetItem!.id
@@ -991,6 +1061,8 @@ export function useQistStore() {
                 ...s,
                 inStock: s.inStock + params.quantity,
                 totalReceived: s.totalReceived + params.quantity,
+                unitCost: newWeightedUnitCost,
+                costLayers: existingLayers,
                 counterLocation: params.counterLocation || s.counterLocation,
                 status: 'available',
               }
@@ -1002,10 +1074,10 @@ export function useQistStore() {
     const newReceipt: StockReceipt = {
       id: generateSecureId('rcpt'),
       supplierName: params.supplierName,
-      purchaseRef: params.purchaseRef,
+      purchaseRef: effectivePurchaseRef,
       receivedDate: params.receivedDate,
-      modelName: params.name,
-      counterLocation: params.counterLocation,
+      modelName: effectiveName,
+      counterLocation: effectiveLocation,
       quantity: params.quantity,
       unitCost: params.unitCost,
       serialNumbers: params.serialNumbers,
@@ -1018,11 +1090,11 @@ export function useQistStore() {
       date: params.receivedDate,
       type: 'RECEIVED',
       stockItemId: targetItem.id,
-      itemName: params.name,
+      itemName: effectiveName,
       serialNumber: params.serialNumbers.join(', '),
       quantity: params.quantity,
-      refDocument: params.purchaseRef || newReceipt.id,
-      counterLocation: params.counterLocation,
+      refDocument: effectivePurchaseRef || newReceipt.id,
+      counterLocation: effectiveLocation,
       actor: currentUser.username,
       reason: `Received shipment from ${params.supplierName}`,
     };
@@ -1050,8 +1122,8 @@ export function useQistStore() {
       `Quantity: ${oldQty + params.quantity}`
     );
 
-    addAuditLog('STOCK_RECEIVED', `Received ${params.quantity} units of ${params.name}`);
-    return newReceipt;
+    addAuditLog('STOCK_RECEIVED', `Received ${params.quantity} units of ${effectiveName}`);
+    return Object.assign(newReceipt, { stockItem: targetItem });
   };
 
   // --- ADD / EDIT / DELETE INDIVIDUAL STOCK ITEM ---
@@ -1110,6 +1182,14 @@ export function useQistStore() {
     }
 
     const oldItem = stock.find((s) => s.id === id);
+    if (!oldItem) return;
+
+    const isReferencedInAgreement = agreements.some((a) => a.itemId === id);
+    const isReferencedInReceipt = stockReceipts.some((r) => r.modelName === oldItem.name);
+    if (isReferencedInAgreement || isReferencedInReceipt) {
+      throw new Error("Cannot delete stock item referenced in agreements or stock receipts.");
+    }
+
     setStock((prev) => prev.filter((s) => s.id !== id));
 
     logActivity(
@@ -1132,6 +1212,7 @@ export function useQistStore() {
     markupAmount?: number;
     unitCost?: number;
     purchaseDate?: string;
+    saleDate?: string;
     deliveryDate?: string;
     totalInstalmentPrice: number;
     downPayment: number;
@@ -1153,7 +1234,7 @@ export function useQistStore() {
       throw new Error("Total instalment price must be a valid positive number.");
     }
     if (params.downPayment === undefined || isNaN(params.downPayment) || !isFinite(params.downPayment) || params.downPayment < 0) {
-      throw new Error("Down payment cannot be negative.");
+      throw new Error("Down payment cannot negative.");
     }
     if (params.downPayment > params.totalInstalmentPrice) {
       throw new Error("Down payment cannot exceed total instalment price.");
@@ -1222,6 +1303,31 @@ export function useQistStore() {
 
     const agreementNumber = getNextAgreementNumber(agreements);
 
+    // FIFO Cost Layer Allocation
+    let agreementUnitCost = params.unitCost;
+    let updatedLayers = item.costLayers ? item.costLayers.map((l) => ({ ...l })) : undefined;
+
+    if (agreementUnitCost === undefined) {
+      if (updatedLayers && updatedLayers.length > 0) {
+        const availableLayer = updatedLayers.find((l) => l.remainingQty > 0);
+        if (availableLayer) {
+          agreementUnitCost = availableLayer.unitCost;
+          availableLayer.remainingQty -= 1;
+        } else {
+          agreementUnitCost = item.unitCost || Math.round(params.cashPrice * 0.85);
+        }
+      } else {
+        agreementUnitCost = item.unitCost || Math.round(params.cashPrice * 0.85);
+      }
+    } else if (updatedLayers && updatedLayers.length > 0) {
+      const availableLayer = updatedLayers.find((l) => l.remainingQty > 0);
+      if (availableLayer) {
+        availableLayer.remainingQty -= 1;
+      }
+    }
+
+    const effectiveSaleDate = params.saleDate || params.startDate || todayLocal();
+
     const newAgr: Agreement = {
       id: generateSecureId('agr'),
       agreementNumber,
@@ -1230,11 +1336,9 @@ export function useQistStore() {
       itemId: params.itemId,
       itemName: item.name,
       itemSerial: item.serialNumber,
-      unitCost:
-        params.unitCost !== undefined
-          ? params.unitCost
-          : item.unitCost || Math.round(params.cashPrice * 0.85),
+      unitCost: agreementUnitCost,
       purchaseDate: params.purchaseDate || item.purchaseDate || todayLocal(),
+      saleDate: effectiveSaleDate,
       deliveryDate: params.deliveryDate || params.startDate || todayLocal(),
       cashPrice: params.cashPrice,
       interestPercentage: params.interestPercentage || 0,
@@ -1260,6 +1364,13 @@ export function useQistStore() {
     setAgreements((prev) => [newAgr, ...prev]);
 
     const newStockCount = Math.max(0, item.inStock - 1);
+    let updatedUnitCost = item.unitCost;
+    if (updatedLayers && updatedLayers.length > 0) {
+      const remQty = updatedLayers.reduce((sum, l) => sum + l.remainingQty, 0);
+      const remVal = updatedLayers.reduce((sum, l) => sum + l.remainingQty * l.unitCost, 0);
+      updatedUnitCost = remQty > 0 ? Math.round(remVal / remQty) : item.unitCost;
+    }
+
     setStock((prev) =>
       prev.map((s) =>
         s.id === params.itemId
@@ -1267,6 +1378,8 @@ export function useQistStore() {
               ...s,
               inStock: newStockCount,
               totalIssued: s.totalIssued + 1,
+              costLayers: updatedLayers,
+              unitCost: updatedUnitCost,
               status: newStockCount === 0 ? 'sold' : 'available',
             }
           : s
@@ -1275,7 +1388,7 @@ export function useQistStore() {
 
     const movement: StockMovement = {
       id: generateSecureId('mov'),
-      date: params.startDate,
+      date: effectiveSaleDate,
       type: 'ISSUED',
       stockItemId: item.id,
       itemName: item.name,
@@ -1291,7 +1404,7 @@ export function useQistStore() {
     if (params.downPayment > 0) {
       const cbEntry: CashBookEntry = {
         id: generateSecureId('cb'),
-        date: params.startDate,
+        date: effectiveSaleDate,
         type: 'in',
         category: 'Down Payment',
         amount: params.downPayment,
@@ -1320,14 +1433,70 @@ export function useQistStore() {
     return newAgr;
   };
 
-  const updateAgreement = (id: string, updates: Partial<Agreement>) => {
+  const updateAgreement = (
+    id: string,
+    updates: {
+      deliveryDate?: string;
+      dueDayOfMonth?: number;
+      status?: 'active' | 'completed' | 'cancelled' | 'defaulter';
+      notes?: string;
+    }
+  ) => {
     if (!verifyPermission('CHANGE_AGREEMENT', 'Agreements', 'Edit Sale Agreement')) {
       throw new Error("Only Admin has permission to modify sales agreements.");
     }
 
     const oldAgr = agreements.find((a) => a.id === id);
+    if (!oldAgr) throw new Error("Agreement not found");
+
+    const safeUpdates: Partial<Agreement> = {};
+    if (updates.notes !== undefined) safeUpdates.notes = updates.notes;
+    if (updates.status !== undefined) safeUpdates.status = updates.status;
+    if (updates.deliveryDate !== undefined) safeUpdates.deliveryDate = updates.deliveryDate;
+    if (updates.dueDayOfMonth !== undefined) safeUpdates.dueDayOfMonth = updates.dueDayOfMonth;
+
+    // When delivery date or due day changes, regenerate dates of unpaid instalments
+    const newDeliveryDate = updates.deliveryDate || oldAgr.deliveryDate;
+    const newDueDay = updates.dueDayOfMonth || oldAgr.dueDayOfMonth;
+
+    if (
+      (updates.deliveryDate && updates.deliveryDate !== oldAgr.deliveryDate) ||
+      (updates.dueDayOfMonth && updates.dueDayOfMonth !== oldAgr.dueDayOfMonth)
+    ) {
+      const baseDate = parseLocalDate(newDeliveryDate || oldAgr.startDate);
+      const updatedSchedule = oldAgr.schedule.map((slot) => {
+        if (slot.status === 'paid') return slot;
+        const targetMonthDate = addMonthsClamped(baseDate, slot.installmentNumber, newDueDay);
+        const y = targetMonthDate.getFullYear();
+        const m = targetMonthDate.getMonth() + 1;
+        const maxDaysInM = new Date(y, m, 0).getDate();
+        const clampedDay = Math.min(newDueDay, maxDaysInM);
+        const newDueDate = `${y}-${String(m).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
+        const isPast = parseLocalDate(newDueDate).getTime() < parseLocalDate(todayLocal()).getTime();
+        return {
+          ...slot,
+          dueDate: newDueDate,
+          status: (slot.paidAmount > 0 ? 'partially_paid' : (isPast ? 'overdue' : 'pending')) as InstalmentDueDate['status'],
+        };
+      });
+      safeUpdates.schedule = updatedSchedule;
+    }
+
+    // When status becomes cancelled, return unit to stock
+    if (updates.status === 'cancelled' && oldAgr.status !== 'cancelled') {
+      if (oldAgr.itemId) {
+        setStock((prev) =>
+          prev.map((s) =>
+            s.id === oldAgr.itemId
+              ? { ...s, inStock: s.inStock + 1, status: 'available' }
+              : s
+          )
+        );
+      }
+    }
+
     setAgreements((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, ...updates } : a))
+      prev.map((a) => (a.id === id ? { ...a, ...safeUpdates } : a))
     );
 
     logActivity(
@@ -1335,8 +1504,8 @@ export function useQistStore() {
       'Agreements',
       `Admin updated agreement: ${oldAgr?.agreementNumber || id}`,
       id,
-      oldAgr ? JSON.stringify(oldAgr) : undefined,
-      JSON.stringify(updates)
+      JSON.stringify(oldAgr),
+      JSON.stringify(safeUpdates)
     );
 
     addAuditLog('AGREEMENT_UPDATED', `Updated agreement: ${oldAgr?.agreementNumber || id}`);
@@ -1366,12 +1535,18 @@ export function useQistStore() {
       );
     }
 
+    // Preserve historical down payment in-entry and post matching reversal entry
     if (target.downPayment > 0) {
-      setCashbook((prev) =>
-        prev.filter(
-          (c) => !(c.referenceNumber === target.agreementNumber && c.category === 'Down Payment')
-        )
-      );
+      const cbOut: CashBookEntry = {
+        id: generateSecureId('cb'),
+        date: todayLocal(),
+        type: 'out',
+        category: 'Refund Reversal',
+        amount: target.downPayment,
+        referenceNumber: `REV-${target.agreementNumber}`,
+        description: `Refund Down Payment for deleted agreement ${target.agreementNumber}`,
+      };
+      setCashbook((prev) => [cbOut, ...prev]);
     }
 
     setAgreements((prev) => prev.filter((a) => a.id !== id));
@@ -1681,6 +1856,35 @@ export function useQistStore() {
   const addCashBookEntry = (entryData: Omit<CashBookEntry, 'id'>) => {
     if (!verifyPermission('ADD_RELATED_ENTRIES', 'Cashbook', 'Add Expense/Income Entry')) {
       throw new Error("You don't have permission to add cashbook entries.");
+    }
+
+    // Input Validation (Item 4 Cashbook Validation)
+    if (typeof entryData.amount !== 'number' || !isFinite(entryData.amount) || entryData.amount <= 0) {
+      throw new Error("Amount must be a positive finite number.");
+    }
+
+    if (entryData.type !== 'in' && entryData.type !== 'out') {
+      throw new Error("Entry type must be 'in' or 'out'.");
+    }
+
+    if (!CASHBOOK_CATEGORIES.includes(entryData.category as any)) {
+      throw new Error(`Category "${entryData.category}" is not an allowed cashbook category.`);
+    }
+
+    if (entryData.type === 'in' && !CASHBOOK_IN_CATEGORIES.includes(entryData.category as any)) {
+      throw new Error(`Category "${entryData.category}" is not an allowed Cash IN category.`);
+    }
+
+    if (entryData.type === 'out' && !CASHBOOK_OUT_CATEGORIES.includes(entryData.category as any)) {
+      throw new Error(`Category "${entryData.category}" is not an allowed Cash OUT category.`);
+    }
+
+    if (!entryData.date || !/^\d{4}-\d{2}-\d{2}$/.test(entryData.date) || isNaN(Date.parse(entryData.date))) {
+      throw new Error("Invalid transaction date.");
+    }
+
+    if (!entryData.description || !entryData.description.trim()) {
+      throw new Error("Description cannot be empty.");
     }
 
     const newEntry: CashBookEntry = {
