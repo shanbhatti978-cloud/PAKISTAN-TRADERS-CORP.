@@ -32,6 +32,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, ReadonlySet<PermissionAction>> =
     'ADD_RELATED_ENTRIES',
     'REVERSE_PAYMENT',
     'EXPORT_REPORTS',
+    'EXPORT_BACKUP',
     'MANAGE_USERS',
     'RESTORE_BACKUP',
     'RESET_DATABASE',

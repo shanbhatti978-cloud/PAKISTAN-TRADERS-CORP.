@@ -14,7 +14,7 @@ import {
   Printer,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { Agreement, Customer, ShopSettings, Payment } from '../types';
+import { Agreement, Customer, ShopSettings, Payment, User } from '../types';
 import { generatePaymentReceiptPDF, generateThermalReceiptPDF } from '../utils/pdfGenerator';
 import { ListPicker } from './ListPicker';
 import { todayLocal } from '../utils/dates';
@@ -23,6 +23,7 @@ interface PaymentModalProps {
   agreements: Agreement[];
   customers: Customer[];
   settings: ShopSettings;
+  currentUser?: User;
   preselectedAgreementId?: string;
   preselectedInstallmentNum?: number;
   onClose: () => void;
@@ -43,6 +44,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   agreements,
   customers,
   settings,
+  currentUser,
   preselectedAgreementId,
   preselectedInstallmentNum,
   onClose,
@@ -80,7 +82,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [discount, setDiscount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Bank Transfer' | 'JazzCash' | 'EasyPaisa'>('Cash');
   const [paymentDate, setPaymentDate] = useState<string>(todayLocal());
-  const [collectorName, setCollectorName] = useState(settings.proprietorName || 'Manager');
+  const [collectorName, setCollectorName] = useState(
+    currentUser?.fullName || currentUser?.username || settings.proprietorName || 'Manager'
+  );
   const [notes, setNotes] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
 

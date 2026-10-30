@@ -17,6 +17,7 @@ import {
   ActivityLedgerEntry,
   PermissionAction,
   LedgerActionType,
+  PriceHistoryEntry,
   CASHBOOK_CATEGORIES,
   CASHBOOK_IN_CATEGORIES,
   CASHBOOK_OUT_CATEGORIES,
@@ -47,6 +48,7 @@ import {
   parseLocalDate,
   addMonthsClamped,
 } from '../utils/dates';
+import { calculateInstalmentPrice, calculateMinDownPayment } from '../utils/pricing';
 import { encryptBackup, decryptBackup } from '../utils/backupEncryption';
 
 export const STORAGE_KEYS = {
@@ -286,11 +288,9 @@ export function useQistStore() {
     getStored(STORAGE_KEYS.ACTIVITY_LEDGER, [])
   );
 
-  // Sync state to LocalStorage
+  // Sync state to LocalStorage (only for non-auth collections; auth/ledger are explicitly setStored on action)
   useEffect(() => setStored(STORAGE_KEYS.SETTINGS, settings), [settings]);
-  useEffect(() => setStored(STORAGE_KEYS.USERS, users), [users]);
   useEffect(() => setStored(STORAGE_KEYS.HAS_REAL_ADMIN, hasRealAdmin), [hasRealAdmin]);
-  useEffect(() => setStored(STORAGE_KEYS.CURRENT_USER, currentUser), [currentUser]);
   useEffect(() => setStored(STORAGE_KEYS.CUSTOMERS, customers), [customers]);
   useEffect(() => setStored(STORAGE_KEYS.CATEGORIES, categories), [categories]);
   useEffect(() => setStored(STORAGE_KEYS.STOCK, stock), [stock]);
@@ -301,7 +301,6 @@ export function useQistStore() {
   useEffect(() => setStored(STORAGE_KEYS.REVERSALS, reversals), [reversals]);
   useEffect(() => setStored(STORAGE_KEYS.CASHBOOK, cashbook), [cashbook]);
   useEffect(() => setStored(STORAGE_KEYS.AUDIT, auditLogs), [auditLogs]);
-  useEffect(() => setStored(STORAGE_KEYS.ACTIVITY_LEDGER, activityLedger), [activityLedger]);
 
   // Central Cryptographic Append-Only Activity Logger
   const logActivity = async (
@@ -310,13 +309,19 @@ export function useQistStore() {
     description: string,
     recordId?: string,
     oldValue?: string,
-    newValue?: string
+    newValue?: string,
+    overrideUsername?: string,
+    overrideRole?: UserRole
   ) => {
-    const prevEntry = activityLedger.length > 0 ? activityLedger[0] : null;
+    const activeUser = getStored<User | null>(STORAGE_KEYS.CURRENT_USER, currentUser);
+    const currentLedger = getStored<ActivityLedgerEntry[]>(STORAGE_KEYS.ACTIVITY_LEDGER, activityLedger);
+    const prevEntry = currentLedger.length > 0 ? currentLedger[0] : null;
+    const usernameToLog = overrideUsername || activeUser?.username || 'System';
+    const roleToLog = overrideRole || activeUser?.role || 'ADMIN';
     const entry = await ActivityLogger.createEntry(
       prevEntry,
-      currentUser.username,
-      currentUser.role,
+      usernameToLog,
+      roleToLog,
       actionType,
       moduleName,
       description,
@@ -324,7 +329,9 @@ export function useQistStore() {
       oldValue,
       newValue
     );
-    setActivityLedger((prev) => [entry, ...prev]);
+    const updatedLedger = [entry, ...currentLedger];
+    setActivityLedger(updatedLedger);
+    setStored(STORAGE_KEYS.ACTIVITY_LEDGER, updatedLedger);
     return entry;
   };
 
@@ -334,12 +341,14 @@ export function useQistStore() {
     moduleName: string,
     actionDesc: string
   ): boolean => {
-    const isAllowed = PermissionManager.can(currentUser.role, action);
+    const activeUser = getStored<User | null>(STORAGE_KEYS.CURRENT_USER, currentUser);
+    const role = activeUser?.role || 'VIEWER';
+    const isAllowed = PermissionManager.can(role, action);
     if (!isAllowed) {
       logActivity(
         'DENIED',
         moduleName,
-        `Permission DENIED: User '${currentUser.username}' (${currentUser.role}) attempted restricted action: ${actionDesc}`
+        `Permission DENIED: User '${activeUser?.username || 'Guest'}' (${role}) attempted restricted action: ${actionDesc}`
       );
     }
     return isAllowed;
@@ -351,7 +360,7 @@ export function useQistStore() {
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
       action,
       details,
-      user: `${currentUser.username} (${currentUser.role})`,
+      user: `${currentUser?.username || 'System'} (${currentUser?.role || 'ADMIN'})`,
     };
     setAuditLogs((prev) => [newLog, ...prev]);
   };
@@ -459,9 +468,9 @@ export function useQistStore() {
   // --- AUTHENTICATION & LOGIN (WITH LOCKOUT & GENERIC ERROR) ---
   const loginUser = async (usernameAttempt: string, passwordAttempt: string) => {
     const cleanUser = usernameAttempt.toLowerCase().trim();
-    const userIndex = users.findIndex((u) => u.username.toLowerCase() === cleanUser);
+    const currentUsersList = getStored<User[]>(STORAGE_KEYS.USERS, users);
+    const userIndex = currentUsersList.findIndex((u) => u.username.toLowerCase() === cleanUser);
 
-    // Generic error message for security (does not reveal if username exists)
     const GENERIC_ERROR = 'Invalid username or password';
 
     if (userIndex === -1) {
@@ -473,9 +482,8 @@ export function useQistStore() {
       return { success: false, message: GENERIC_ERROR };
     }
 
-    const user = users[userIndex];
+    const user = currentUsersList[userIndex];
 
-    // Check if account is locked out (5 failed attempts = 5-minute lockout)
     if (user.lockoutUntil && new Date(user.lockoutUntil).getTime() > Date.now()) {
       const remainingMins = Math.ceil(
         (new Date(user.lockoutUntil).getTime() - Date.now()) / 60000
@@ -491,7 +499,6 @@ export function useQistStore() {
       };
     }
 
-    // Reject deactivated demo accounts or disabled users
     if (user.isActive === false || !user.passwordHash) {
       logActivity(
         'FAILED_LOGIN',
@@ -501,7 +508,6 @@ export function useQistStore() {
       return { success: false, message: GENERIC_ERROR };
     }
 
-    // Verify Password Hash (PBKDF2 or Legacy Salted SHA-256)
     const isMatch = await verifyPassword(passwordAttempt, user.salt, user.passwordHash);
 
     if (!isMatch) {
@@ -509,7 +515,7 @@ export function useQistStore() {
       let lockoutTime: string | undefined = undefined;
 
       if (newAttempts >= 5) {
-        lockoutTime = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 min lock
+        lockoutTime = new Date(Date.now() + 5 * 60 * 1000).toISOString();
         logActivity(
           'USER_LOCKED',
           'Auth',
@@ -523,17 +529,17 @@ export function useQistStore() {
         );
       }
 
-      setUsers((prev) =>
-        prev.map((u, idx) =>
-          idx === userIndex
-            ? {
-                ...u,
-                failedAttempts: newAttempts,
-                lockoutUntil: lockoutTime || u.lockoutUntil,
-              }
-            : u
-        )
+      const updatedList = currentUsersList.map((u, idx) =>
+        idx === userIndex
+          ? {
+              ...u,
+              failedAttempts: newAttempts,
+              lockoutUntil: lockoutTime || u.lockoutUntil,
+            }
+          : u
       );
+      setUsers(updatedList);
+      setStored(STORAGE_KEYS.USERS, updatedList);
 
       return {
         success: false,
@@ -543,16 +549,13 @@ export function useQistStore() {
       };
     }
 
-    // Successful Login: Reset failed attempts & upgrade legacy hash to PBKDF2 if needed
     let updatedHash = user.passwordHash;
     let updatedSalt = user.salt;
     if (!user.passwordHash.startsWith('pbkdf2:')) {
       try {
         updatedSalt = generateSecureSalt();
         updatedHash = await hashPassword(passwordAttempt, updatedSalt);
-      } catch {
-        // Keep existing if derivation fails
-      }
+      } catch {}
     }
 
     const updatedUser: User = {
@@ -564,13 +567,21 @@ export function useQistStore() {
       lastLoginAt: new Date().toISOString(),
     };
 
-    setUsers((prev) => prev.map((u, idx) => (idx === userIndex ? updatedUser : u)));
+    const updatedList = currentUsersList.map((u, idx) => (idx === userIndex ? updatedUser : u));
+    setUsers(updatedList);
+    setStored(STORAGE_KEYS.USERS, updatedList);
     setCurrentUser(updatedUser);
+    setStored(STORAGE_KEYS.CURRENT_USER, updatedUser);
 
-    logActivity(
+    await logActivity(
       'LOGIN',
       'Auth',
-      `User '${updatedUser.username}' successfully logged in with role: ${updatedUser.role}`
+      `User '${updatedUser.username}' successfully logged in with role: ${updatedUser.role}`,
+      undefined,
+      undefined,
+      undefined,
+      updatedUser.username,
+      updatedUser.role
     );
     addAuditLog('USER_LOGIN', `User ${updatedUser.username} logged in`);
 
@@ -582,25 +593,31 @@ export function useQistStore() {
   };
 
   const logoutUser = () => {
-    logActivity('LOGOUT', 'Auth', `User '${currentUser.username}' logged out`);
-    addAuditLog('USER_LOGOUT', `User ${currentUser.username} logged out`);
-
-    let activeViewer = users.find((u) => u.role === 'VIEWER' && u.isActive !== false);
-    if (!activeViewer) {
-      activeViewer = {
-        id: 'usr-guest-viewer',
-        username: 'viewer',
-        passwordHash: '',
-        fullName: 'Read-Only Viewer',
-        role: 'VIEWER',
-        createdAt: todayLocal(),
-        isActive: true,
-      };
-      setUsers((prev) => [...prev.filter((u) => u.username !== 'viewer'), activeViewer!]);
+    if (currentUser) {
+      logActivity('LOGOUT', 'Auth', `User '${currentUser.username}' logged out`);
+      addAuditLog('USER_LOGOUT', `User ${currentUser.username} logged out`);
     }
 
-    setCurrentUser(activeViewer);
-    setStored(STORAGE_KEYS.CURRENT_USER, activeViewer);
+    if (settings.allowGuestMode) {
+      let activeViewer = users.find((u) => u.role === 'VIEWER' && u.isActive !== false);
+      if (!activeViewer) {
+        activeViewer = {
+          id: 'usr-guest-viewer',
+          username: 'viewer',
+          passwordHash: '',
+          fullName: 'Read-Only Viewer',
+          role: 'VIEWER',
+          createdAt: todayLocal(),
+          isActive: true,
+        };
+        setUsers((prev) => [...prev.filter((u) => u.username !== 'viewer'), activeViewer!]);
+      }
+      setCurrentUser(activeViewer);
+      setStored(STORAGE_KEYS.CURRENT_USER, activeViewer);
+    } else {
+      setCurrentUser(null as any);
+      setStored(STORAGE_KEYS.CURRENT_USER, null);
+    }
   };
 
   // --- USER MANAGEMENT (ADMIN ONLY) ---
@@ -614,18 +631,29 @@ export function useQistStore() {
       throw new Error("You don't have permission to create user accounts.");
     }
 
-    const cleanUsername = params.username.toLowerCase().trim();
-    if (users.some((u) => u.username.toLowerCase() === cleanUsername && u.isActive !== false)) {
+    const cleanUsername = params.username.trim();
+
+    const USERNAME_REGEX = /^[a-z0-9._-]{3,20}$/i;
+    if (!USERNAME_REGEX.test(cleanUsername)) {
+      throw new Error("Invalid username format. Username must be 3-20 characters long and contain only letters, numbers, dots, underscores, or hyphens without spaces.");
+    }
+
+    const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+    if (!PASSWORD_REGEX.test(params.password)) {
+      throw new Error("Weak password. Password must be at least 8 characters long and contain both letters and digits.");
+    }
+
+    const currentUsersList = getStored<User[]>(STORAGE_KEYS.USERS, users);
+    if (currentUsersList.some((u) => u.username.toLowerCase() === cleanUsername.toLowerCase())) {
       throw new Error(`Username '${cleanUsername}' is already taken.`);
     }
 
     const salt = generateSecureSalt();
-    const passwordHash = await hashPassword(params.password, salt);
 
     const newUser: User = {
       id: generateSecureId('usr'),
       username: cleanUsername,
-      passwordHash,
+      passwordHash: params.password,
       salt,
       fullName: params.fullName.trim(),
       role: params.role,
@@ -636,12 +664,21 @@ export function useQistStore() {
       failedAttempts: 0,
     };
 
-    setUsers((prev) => [newUser, ...prev]);
+    const updatedUsersList = [newUser, ...currentUsersList];
+    setUsers(updatedUsersList);
+    setStored(STORAGE_KEYS.USERS, updatedUsersList);
+
+    hashPassword(params.password, salt).then((pbkdf2Hash) => {
+      const latest = getStored<User[]>(STORAGE_KEYS.USERS, updatedUsersList);
+      const upgraded = latest.map((u) => (u.id === newUser.id ? { ...u, passwordHash: pbkdf2Hash } : u));
+      setUsers(upgraded);
+      setStored(STORAGE_KEYS.USERS, upgraded);
+    }).catch(() => {});
 
     logActivity(
       'USER_CREATED',
       'System',
-      `Admin '${currentUser.username}' created new ${params.role} account '${newUser.username}' for ${newUser.fullName}`,
+      `Admin '${currentUser?.username || 'Admin'}' created new ${params.role} account '${newUser.username}' for ${newUser.fullName}`,
       newUser.id
     );
 
@@ -653,11 +690,11 @@ export function useQistStore() {
       throw new Error("You don't have permission to edit user accounts.");
     }
 
-    const target = users.find((u) => u.id === id);
+    const currentUsersList = getStored<User[]>(STORAGE_KEYS.USERS, users);
+    const target = currentUsersList.find((u) => u.id === id);
     if (!target) throw new Error("User account not found.");
 
-    // Safety Rule: Cannot demote the last active real Admin
-    const activeRealAdmins = users.filter(
+    const activeRealAdmins = currentUsersList.filter(
       (u) => u.role === 'ADMIN' && !u.isDemo && u.isActive !== false
     );
     if (
@@ -670,9 +707,9 @@ export function useQistStore() {
       throw new Error("Action blocked: You must keep at least ONE active Real Admin account.");
     }
 
-    setUsers((prev) =>
-      prev.map((u) => (u.id === id ? { ...u, ...updates } : u))
-    );
+    const updatedList = currentUsersList.map((u) => (u.id === id ? { ...u, ...updates } : u));
+    setUsers(updatedList);
+    setStored(STORAGE_KEYS.USERS, updatedList);
 
     if (updates.role && updates.role !== target.role) {
       logActivity(
@@ -698,67 +735,109 @@ export function useQistStore() {
       throw new Error("You don't have permission to reset user passwords.");
     }
 
-    const target = users.find((u) => u.id === id);
+    const currentUsersList = getStored<User[]>(STORAGE_KEYS.USERS, users);
+    const target = currentUsersList.find((u) => u.id === id);
     if (!target) throw new Error("User account not found.");
 
-    const salt = generateSecureSalt();
-    const passwordHash = await hashPassword(newTempPassword, salt);
+    const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+    if (!PASSWORD_REGEX.test(newTempPassword)) {
+      throw new Error("Weak password. Password must be at least 8 characters long and contain both letters and digits.");
+    }
 
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === id
-          ? {
-              ...u,
-              passwordHash,
-              salt,
-              mustChangePassword: true,
-              failedAttempts: 0,
-              lockoutUntil: undefined,
-            }
-          : u
-      )
+    const salt = generateSecureSalt();
+
+    const updatedList = currentUsersList.map((u) =>
+      u.id === id
+        ? {
+            ...u,
+            passwordHash: newTempPassword,
+            salt,
+            mustChangePassword: true,
+            failedAttempts: 0,
+            lockoutUntil: undefined,
+          }
+        : u
     );
+    setUsers(updatedList);
+    setStored(STORAGE_KEYS.USERS, updatedList);
+
+    hashPassword(newTempPassword, salt).then((pbkdf2Hash) => {
+      const latest = getStored<User[]>(STORAGE_KEYS.USERS, updatedList);
+      const upgraded = latest.map((u) => (u.id === id ? { ...u, passwordHash: pbkdf2Hash } : u));
+      setUsers(upgraded);
+      setStored(STORAGE_KEYS.USERS, upgraded);
+    }).catch(() => {});
 
     logActivity(
       'PASSWORD_RESET',
       'System',
-      `Admin '${currentUser.username}' reset password for user '${target.username}'. Temporary password assigned.`,
+      `Admin '${currentUser?.username || 'Admin'}' reset password for user '${target.username}'. Temporary password assigned.`,
       id
     );
   };
 
-  const setUserActiveStatus = (id: string, isActive: boolean) => {
+  const setUserActiveStatus = async (id: string, isActive: boolean, newTempPassword?: string) => {
     if (!verifyPermission('MANAGE_USERS', 'System', 'Change Account Status')) {
       throw new Error("You don't have permission to change account status.");
     }
 
-    const target = users.find((u) => u.id === id);
+    const currentUsersList = getStored<User[]>(STORAGE_KEYS.USERS, users);
+    const target = currentUsersList.find((u) => u.id === id);
     if (!target) throw new Error("User account not found.");
 
-    // Safety Rule: Cannot disable the last active real Admin
-    const activeRealAdmins = users.filter(
+    const activeRealAdmins = currentUsersList.filter(
       (u) => u.role === 'ADMIN' && !u.isDemo && u.isActive !== false
     );
     if (!isActive && target.role === 'ADMIN' && !target.isDemo && activeRealAdmins.length <= 1) {
       throw new Error("Action blocked: You must keep at least ONE active Real Admin account.");
     }
 
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === id
-          ? {
-              ...u,
-              isActive,
-              passwordHash: isActive ? u.passwordHash : '',
-            }
-          : u
-      )
+    let updatedHash = target.passwordHash;
+    let updatedSalt = target.salt;
+    let mustChangePassword = target.mustChangePassword;
+
+    if (isActive && (target.isActive === false || !target.passwordHash)) {
+      if (!newTempPassword) {
+        throw new Error("A temporary password is required when re-enabling a user account.");
+      }
+      const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+      if (!PASSWORD_REGEX.test(newTempPassword)) {
+        throw new Error("Weak password. Password must be at least 8 characters long and contain both letters and digits.");
+      }
+      updatedSalt = generateSecureSalt();
+      updatedHash = newTempPassword;
+      mustChangePassword = true;
+
+      hashPassword(newTempPassword, updatedSalt).then((pbkdf2Hash) => {
+        const latest = getStored<User[]>(STORAGE_KEYS.USERS, updatedList);
+        const upgraded = latest.map((u) => (u.id === id ? { ...u, passwordHash: pbkdf2Hash } : u));
+        setUsers(upgraded);
+        setStored(STORAGE_KEYS.USERS, upgraded);
+      }).catch(() => {});
+    } else if (!isActive) {
+      updatedHash = '';
+    }
+
+    const updatedList = currentUsersList.map((u) =>
+      u.id === id
+        ? {
+            ...u,
+            isActive,
+            passwordHash: updatedHash,
+            salt: updatedSalt,
+            mustChangePassword,
+            failedAttempts: 0,
+            lockoutUntil: undefined,
+          }
+        : u
     );
+    setUsers(updatedList);
+    setStored(STORAGE_KEYS.USERS, updatedList);
 
     logActivity(
       isActive ? 'USER_ENABLED' : 'USER_DISABLED',
       'System',
-      `Account '${target.username}' (${target.role}) was ${isActive ? 'enabled' : 'disabled'} by Admin '${currentUser.username}'`,
+      `Account '${target.username}' (${target.role}) was ${isActive ? 'enabled' : 'disabled'} by Admin '${currentUser?.username || 'Admin'}'`,
       id
     );
   };
@@ -867,15 +946,18 @@ export function useQistStore() {
       throw new Error("You don't have permission to add customers.");
     }
 
+    const currentCustomersList = getStored<Customer[]>(STORAGE_KEYS.CUSTOMERS, customers);
     const id = generateSecureId('cust');
-    const customerCode = `CUST-${(customers.length + 1).toString().padStart(3, '0')}`;
+    const customerCode = `CUST-${(currentCustomersList.length + 1).toString().padStart(3, '0')}`;
     const newCust: Customer = {
       ...customerData,
       id,
       customerCode,
       createdAt: todayLocal(),
     };
-    setCustomers((prev) => [newCust, ...prev]);
+    const updatedList = [newCust, ...currentCustomersList];
+    setCustomers(updatedList);
+    setStored(STORAGE_KEYS.CUSTOMERS, updatedList);
 
     logActivity(
       'ADD_ENTRY',
@@ -951,6 +1033,8 @@ export function useQistStore() {
     unitCost: number;
     cashPrice: number;
     instalmentPrice: number;
+    marketPrice?: number;
+    markupPercentage?: number;
     minDownPayment?: number;
     serialNumbers: string[];
     counterLocation?: string;
@@ -1009,9 +1093,11 @@ export function useQistStore() {
     const effectiveLocation = params.counterLocation || 'Main Showroom Counter #1';
     const effectiveMinDown = params.minDownPayment !== undefined ? params.minDownPayment : Math.round(params.cashPrice * 0.2);
 
-    let targetItem = stock.find((s) => s.id === params.stockItemId);
+    const currentStockList = getStored<StockItem[]>(STORAGE_KEYS.STOCK, stock);
+    let targetItem = currentStockList.find((s) => s.id === params.stockItemId);
     const oldQty = targetItem ? targetItem.inStock : 0;
 
+    let updatedStockList: StockItem[];
     if (!targetItem) {
       const newStockId = generateSecureId('stock');
       const initialLayers = [{ quantity: params.quantity, unitCost: params.unitCost, remainingQty: params.quantity }];
@@ -1026,6 +1112,7 @@ export function useQistStore() {
         costLayers: initialLayers,
         cashPrice: params.cashPrice,
         instalmentPrice: params.instalmentPrice,
+        marketPrice: params.marketPrice !== undefined ? params.marketPrice : params.cashPrice,
         minDownPayment: effectiveMinDown,
         inStock: params.quantity,
         totalReceived: params.quantity,
@@ -1036,7 +1123,7 @@ export function useQistStore() {
         purchaseRef: effectivePurchaseRef,
         purchaseDate: params.receivedDate,
       };
-      setStock((prev) => [targetItem!, ...prev]);
+      updatedStockList = [targetItem, ...currentStockList];
     } else {
       const existingLayers = targetItem.costLayers && targetItem.costLayers.length > 0
         ? [...targetItem.costLayers]
@@ -1054,22 +1141,27 @@ export function useQistStore() {
       const totalRemVal = existingLayers.reduce((sum, l) => sum + l.remainingQty * l.unitCost, 0);
       const newWeightedUnitCost = totalRemQty > 0 ? Math.round(totalRemVal / totalRemQty) : params.unitCost;
 
-      setStock((prev) =>
-        prev.map((s) =>
-          s.id === targetItem!.id
-            ? {
-                ...s,
-                inStock: s.inStock + params.quantity,
-                totalReceived: s.totalReceived + params.quantity,
-                unitCost: newWeightedUnitCost,
-                costLayers: existingLayers,
-                counterLocation: params.counterLocation || s.counterLocation,
-                status: 'available',
-              }
-            : s
-        )
+      updatedStockList = currentStockList.map((s) =>
+        s.id === targetItem!.id
+          ? {
+              ...s,
+              inStock: s.inStock + params.quantity,
+              totalReceived: s.totalReceived + params.quantity,
+              unitCost: newWeightedUnitCost,
+              costLayers: existingLayers,
+              cashPrice: params.cashPrice,
+              instalmentPrice: params.instalmentPrice,
+              marketPrice: params.marketPrice !== undefined ? params.marketPrice : params.cashPrice,
+              markupPercentage: params.markupPercentage !== undefined ? params.markupPercentage : s.markupPercentage,
+              minDownPayment: effectiveMinDown,
+              counterLocation: params.counterLocation || s.counterLocation,
+              status: 'available',
+            }
+          : s
       );
     }
+    setStock(updatedStockList);
+    setStored(STORAGE_KEYS.STOCK, updatedStockList);
 
     const newReceipt: StockReceipt = {
       id: generateSecureId('rcpt'),
@@ -1176,6 +1268,56 @@ export function useQistStore() {
     addAuditLog('STOCK_ITEM_UPDATED', `Updated stock item ID: ${id}`);
   };
 
+  const updateItemMarketPrice = (
+    itemId: string,
+    newMarketPrice: number,
+    newMarkupPercentage: number = 20,
+    changedBy?: string
+  ) => {
+    if (!verifyPermission('EDIT_ITEM', 'Inventory', 'Update Market Price')) {
+      throw new Error("You don't have permission to update item prices.");
+    }
+
+    const target = stock.find((s) => s.id === itemId);
+    if (!target) throw new Error("Stock item not found.");
+
+    const roundingStep = settings.priceRoundingStep || 100;
+    const newInstalmentPrice = calculateInstalmentPrice(newMarketPrice, newMarkupPercentage, roundingStep);
+    const newMinDownPayment = calculateMinDownPayment(newMarketPrice, settings.defaultMinDownPaymentPercent || 15, roundingStep);
+
+    const priceHistoryEntry: PriceHistoryEntry = {
+      date: todayLocal(),
+      oldMarketPrice: target.marketPrice || target.cashPrice,
+      newMarketPrice,
+      oldInstalmentPrice: target.instalmentPrice,
+      newInstalmentPrice,
+      changedBy: changedBy || currentUser?.username || 'Admin',
+    };
+
+    setStock((prev) =>
+      prev.map((s) =>
+        s.id === itemId
+          ? {
+              ...s,
+              marketPrice: newMarketPrice,
+              markupPercentage: newMarkupPercentage,
+              cashPrice: newMarketPrice,
+              instalmentPrice: newInstalmentPrice,
+              minDownPayment: newMinDownPayment,
+              priceHistory: [...(s.priceHistory || []), priceHistoryEntry],
+            }
+          : s
+      )
+    );
+
+    logActivity(
+      'EDIT_ITEM',
+      'Inventory',
+      `Updated market price for '${target.name}' to Rs. ${newMarketPrice.toLocaleString()} (${newMarkupPercentage}% markup -> Instalment Rs. ${newInstalmentPrice.toLocaleString()})`,
+      itemId
+    );
+  };
+
   const deleteStockItem = (id: string) => {
     if (!verifyPermission('DELETE_ITEM', 'Inventory', 'Delete Stock Item')) {
       throw new Error("You don't have permission to delete stock items.");
@@ -1220,6 +1362,7 @@ export function useQistStore() {
     monthlyInstalment?: number;
     dueDayOfMonth: number;
     startDate: string;
+    confirmedBelowCost?: boolean;
     notes?: string;
   }) => {
     if (!verifyPermission('ADD_AGREEMENT', 'Agreements', 'Create Sale Agreement')) {
@@ -1246,8 +1389,12 @@ export function useQistStore() {
       throw new Error("Due day of month must be an integer between 1 and 31.");
     }
 
-    const customer = customers.find((c) => c.id === params.customerId);
-    const item = stock.find((s) => s.id === params.itemId);
+    const currentCustomersList = getStored<Customer[]>(STORAGE_KEYS.CUSTOMERS, customers);
+    const currentStockList = getStored<StockItem[]>(STORAGE_KEYS.STOCK, stock);
+    const currentAgreementsList = getStored<Agreement[]>(STORAGE_KEYS.AGREEMENTS, agreements);
+
+    const customer = currentCustomersList.find((c) => c.id === params.customerId);
+    const item = currentStockList.find((s) => s.id === params.itemId);
 
     if (!customer || !item) {
       throw new Error("Customer or Stock Item not found");
@@ -1301,7 +1448,7 @@ export function useQistStore() {
       throw new Error(`Schedule calculation error: sum (${scheduleSum}) must equal remaining balance (${remainingBalance}).`);
     }
 
-    const agreementNumber = getNextAgreementNumber(agreements);
+    const agreementNumber = getNextAgreementNumber(currentAgreementsList);
 
     // FIFO Cost Layer Allocation
     let agreementUnitCost = params.unitCost;
@@ -1326,7 +1473,14 @@ export function useQistStore() {
       }
     }
 
+    if (params.totalInstalmentPrice < agreementUnitCost && !(params as any).confirmedBelowCost) {
+      throw new Error(
+        `Selling price (Rs. ${params.totalInstalmentPrice.toLocaleString()}) is below unit cost (Rs. ${agreementUnitCost.toLocaleString()}). Admin confirmation required.`
+      );
+    }
+
     const effectiveSaleDate = params.saleDate || params.startDate || todayLocal();
+    const calculatedMarkup = params.totalInstalmentPrice - agreementUnitCost;
 
     const newAgr: Agreement = {
       id: generateSecureId('agr'),
@@ -1342,12 +1496,9 @@ export function useQistStore() {
       deliveryDate: params.deliveryDate || params.startDate || todayLocal(),
       cashPrice: params.cashPrice,
       interestPercentage: params.interestPercentage || 0,
-      markupAmount:
-        params.markupAmount ||
-        Math.max(
-          0,
-          params.totalInstalmentPrice - (item.unitCost || Math.round(params.cashPrice * 0.85))
-        ),
+      markupAmount: params.markupAmount !== undefined ? params.markupAmount : calculatedMarkup,
+      confirmedBelowCost: (params as any).confirmedBelowCost || false,
+      recordedBy: currentUser?.fullName || currentUser?.username || 'Admin',
       totalInstalmentPrice: params.totalInstalmentPrice,
       downPayment: params.downPayment,
       remainingBalance,
@@ -1361,7 +1512,9 @@ export function useQistStore() {
       createdAt: todayLocal(),
     };
 
-    setAgreements((prev) => [newAgr, ...prev]);
+    const updatedAgrsList = [newAgr, ...currentAgreementsList];
+    setAgreements(updatedAgrsList);
+    setStored(STORAGE_KEYS.AGREEMENTS, updatedAgrsList);
 
     const newStockCount = Math.max(0, item.inStock - 1);
     let updatedUnitCost = item.unitCost;
@@ -1371,20 +1524,20 @@ export function useQistStore() {
       updatedUnitCost = remQty > 0 ? Math.round(remVal / remQty) : item.unitCost;
     }
 
-    setStock((prev) =>
-      prev.map((s) =>
-        s.id === params.itemId
-          ? {
-              ...s,
-              inStock: newStockCount,
-              totalIssued: s.totalIssued + 1,
-              costLayers: updatedLayers,
-              unitCost: updatedUnitCost,
-              status: newStockCount === 0 ? 'sold' : 'available',
-            }
-          : s
-      )
+    const updatedStockList = currentStockList.map((s) =>
+      s.id === params.itemId
+        ? {
+            ...s,
+            inStock: newStockCount,
+            totalIssued: s.totalIssued + 1,
+            costLayers: updatedLayers,
+            unitCost: updatedUnitCost,
+            status: (newStockCount === 0 ? 'sold' : 'available') as StockItem['status'],
+          }
+        : s
     );
+    setStock(updatedStockList);
+    setStored(STORAGE_KEYS.STOCK, updatedStockList);
 
     const movement: StockMovement = {
       id: generateSecureId('mov'),
@@ -1950,8 +2103,8 @@ export function useQistStore() {
 
   // --- BACKUP DATA MANAGEMENT (Phase 2.3 & 2.4) ---
   const exportBackupJSON = async (encryptionPassword?: string): Promise<string> => {
-    if (!verifyPermission('EXPORT_REPORTS', 'System', 'Export Database Backup')) {
-      throw new Error("You don't have permission to export database backups.");
+    if (!verifyPermission('EXPORT_BACKUP', 'System', 'Export Database Backup')) {
+      throw new Error("Permission denied: You don't have permission to export database backups.");
     }
 
     const backupData = {
@@ -1960,7 +2113,7 @@ export function useQistStore() {
       exportedAt: new Date().toISOString(),
       hasRealAdmin,
       settings,
-      users: users.map((u) => (u.isDemo ? { ...u, passwordHash: '' } : u)),
+      users: users.map((u) => ({ ...u, passwordHash: '', salt: '' })),
       customers,
       categories,
       stock,
@@ -2169,10 +2322,10 @@ export function useQistStore() {
     changeOwnPassword,
     updateForcedPassword,
     changeOwnDisplayName,
-    currentUser,
+    currentUser: getStored<User | null>(STORAGE_KEYS.CURRENT_USER, currentUser) || currentUser,
     loginUser,
     logoutUser,
-    activityLedger,
+    activityLedger: getStored<ActivityLedgerEntry[]>(STORAGE_KEYS.ACTIVITY_LEDGER, activityLedger),
     logActivity,
     verifyPermission,
     customers,
@@ -2187,6 +2340,7 @@ export function useQistStore() {
     receiveStock,
     addStockItem,
     updateStockItem,
+    updateItemMarketPrice,
     deleteStockItem,
     stockReceipts,
     stockMovements,

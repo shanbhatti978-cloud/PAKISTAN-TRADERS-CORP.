@@ -55,7 +55,7 @@ export const generateExcelAuditReport = async ({
   auditLogs,
   settings,
 }: ExportReportParams) => {
-  const XLSX = await import('xlsx');
+  const XLSX = await import('@e965/xlsx');
   const wb = XLSX.utils.book_new();
 
   // Common Header Information

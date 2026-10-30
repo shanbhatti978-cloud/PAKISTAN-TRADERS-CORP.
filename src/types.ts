@@ -38,6 +38,16 @@ export interface CategoryItem {
 
 export type ProductCategory = string;
 
+export interface PriceHistoryEntry {
+  date: string;
+  oldMarketPrice: number;
+  newMarketPrice: number;
+  oldInstalmentPrice: number;
+  newInstalmentPrice: number;
+  changedBy: string;
+  notes?: string;
+}
+
 export interface StockItem {
   id: string;
   name: string;
@@ -45,15 +55,18 @@ export interface StockItem {
   brand: string;
   model: string;
   serialNumber: string; // IMEI / Chassis / Serial #
-  unitCost: number; // Actual original purchase price paid by corporation (NEVER overwritten)
+  unitCost: number; // Actual original purchase price paid by corporation
   landedCost?: number; // Freight / taxes / additional landed cost
+  marketPrice?: number; // Cash / Market retail value
   cashPrice: number;
+  markupPercentage?: number; // Markup percentage e.g. 20
+  minDownPaymentPercent?: number; // Minimum down payment % e.g. 15
   instalmentPrice: number;
   minDownPayment: number;
   inStock: number;
   totalReceived: number;
   totalIssued: number;
-  counterLocation: string; // e.g. "Counter #1 - Main Display", "Warehouse Rack B", "Shelf 4"
+  counterLocation: string;
   status: 'available' | 'sold' | 'reserved' | 'returned' | 'damaged';
   supplierName?: string;
   purchaseRef?: string;
@@ -61,6 +74,8 @@ export interface StockItem {
   imageUrl?: string;
   specifications?: string;
   costLayers?: { quantity: number; unitCost: number; remainingQty: number }[];
+  priceHistory?: PriceHistoryEntry[];
+  recordedBy?: { userId: string; username: string } | string;
 }
 
 export interface StockReceipt {
@@ -122,8 +137,12 @@ export interface Agreement {
   saleDate?: string; // Date contract/sale booked & down payment received (drives cashbook and reports)
   deliveryDate?: string; // Date item given / dispatched to customer
   cashPrice: number;
+  marketPriceAtSale?: number;
   interestPercentage?: number; // Manual interest / profit percentage entered e.g. 15% or 20%
   markupAmount?: number; // Markup amount in PKR
+  marketGain?: number; // marketPrice - unitCost
+  instalmentMarkup?: number; // customerPrice - marketPrice
+  confirmedBelowCost?: boolean;
   totalInstalmentPrice: number;
   downPayment: number;
   remainingBalance: number;
@@ -135,6 +154,7 @@ export interface Agreement {
   schedule: InstalmentDueDate[];
   notes?: string;
   createdAt: string;
+  recordedBy?: { userId: string; username: string } | string;
 }
 
 export interface Payment {
@@ -153,6 +173,7 @@ export interface Payment {
   isReversed?: boolean;
   allocations?: { installmentNumber: number; amount: number }[];
   notes?: string;
+  recordedBy?: { userId: string; username: string } | string;
 }
 
 export interface PaymentReversal {
@@ -222,6 +243,7 @@ export interface CashBookEntry {
   amount: number;
   referenceNumber: string;
   description: string;
+  recordedBy?: { userId: string; username: string } | string;
 }
 
 export type M3ThemeColor = 'blue' | 'red' | 'green' | 'purple' | 'amber' | 'teal' | 'indigo';
@@ -248,6 +270,11 @@ export interface ShopSettings {
   liteMode?: boolean;
   animatedBackground?: boolean;
   fontSize?: FontSizePreference;
+  defaultMarkupPercent?: number; // Default 20%
+  defaultMinDownPaymentPercent?: number; // Default 15%
+  priceRoundingStep?: 100 | 500; // Default 100
+  priceWarningDays?: number; // Default 30
+  allowGuestMode?: boolean; // Default false
 }
 
 export type UserRole = 'ADMIN' | 'SUPERVISOR' | 'VIEWER';
@@ -282,6 +309,7 @@ export type PermissionAction =
   | 'MODIFY_AUDIT_REPORT'
   | 'REVERSE_PAYMENT'
   | 'EXPORT_REPORTS'
+  | 'EXPORT_BACKUP'
   | 'MANAGE_USERS'
   | 'RESTORE_BACKUP'
   | 'RESET_DATABASE';

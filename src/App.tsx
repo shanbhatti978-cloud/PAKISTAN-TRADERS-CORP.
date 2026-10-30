@@ -579,6 +579,7 @@ function MainAppLayout() {
           agreements={agreements}
           customers={customers}
           settings={settings}
+          currentUser={currentUser}
           preselectedAgreementId={actions.preselectedAgrId}
           preselectedInstallmentNum={actions.preselectedInstallmentNum}
           onClose={() => actions.setShowPaymentModal(false)}
