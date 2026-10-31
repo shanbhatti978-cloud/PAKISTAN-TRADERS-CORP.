@@ -536,7 +536,7 @@ function MainAppLayout() {
         overdueCount={overdueCount}
         lowStockCount={lowStockCount}
         currentUserRole={currentUser?.role}
-        isModalOpen={isModalOpen}
+        isModalOpen={isModalOpen || showMoreSheet}
       />
 
       {/* More Apps & Utilities Sheet */}

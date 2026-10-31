@@ -28,6 +28,7 @@ export const BottomDock: React.FC<BottomDockProps> = ({
   isModalOpen = false,
 }) => {
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [blockingOverlay, setBlockingOverlay] = useState(false);
 
   const prefersReducedMotion =
     typeof window !== 'undefined' &&
@@ -53,6 +54,25 @@ export const BottomDock: React.FC<BottomDockProps> = ({
     };
   }, []);
 
+  // Any full-screen window (drawer, form, confirm) is also `fixed inset-0`.
+  // The dock is painted later, so it sits on top of those buttons unless it hides.
+  useEffect(() => {
+    let last = false;
+    const update = () => {
+      const open = Array.from(document.querySelectorAll<HTMLElement>('.fixed.inset-0')).some(
+        (el) => !el.classList.contains('pointer-events-none')
+      );
+      if (open !== last) {
+        last = open;
+        setBlockingOverlay(open);
+      }
+    };
+    update();
+    const obs = new MutationObserver(update);
+    obs.observe(document.body, { childList: true, subtree: true });
+    return () => obs.disconnect();
+  }, []);
+
   const items: DockItem[] = [
     { id: 'home', label: 'Home', icon: Home, showDot: false },
     { id: 'agreements', label: 'Sales', icon: FileSignature, showDot: false },
@@ -70,11 +90,11 @@ export const BottomDock: React.FC<BottomDockProps> = ({
     }
   };
 
-  if (isModalOpen || isKeyboardOpen) return null;
+  if (isModalOpen || isKeyboardOpen || blockingOverlay) return null;
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-50 flex justify-center pointer-events-none"
+      className="fixed inset-x-0 bottom-0 z-30 flex justify-center pointer-events-none"
       style={{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }}
     >
       <motion.nav
