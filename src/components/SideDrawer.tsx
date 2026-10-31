@@ -99,26 +99,6 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
     };
   }, [isOpen, onClose]);
 
-  // Browser Back button navigation listener (history popstate)
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handlePopState = () => {
-      onClose();
-    };
-
-    window.history.pushState({ sideDrawerOpen: true }, '');
-    window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      // Clean up our pushed state if still present
-      if (window.history.state?.sideDrawerOpen) {
-        window.history.back();
-      }
-    };
-  }, [isOpen, onClose]);
-
   // Edge-swipe open listener (when drawer is closed on mobile)
   useEffect(() => {
     if (isOpen || !onEdgeSwipeOpen) return;
@@ -221,21 +201,6 @@ export const SideDrawer: React.FC<SideDrawerProps> = ({
                 ? { duration: 0 }
                 : { type: 'spring', stiffness: 420, damping: 34 }
             }
-            drag="x"
-            dragConstraints={
-              isLeftPhysical ? { left: -360, right: 0 } : { left: 0, right: 360 }
-            }
-            dragElastic={0.1}
-            onDragEnd={(_, info) => {
-              // Swipe towards edge to close
-              const swipeToClose = isLeftPhysical
-                ? info.offset.x < -60 || info.velocity.x < -300
-                : info.offset.x > 60 || info.velocity.x > 300;
-
-              if (swipeToClose) {
-                onClose();
-              }
-            }}
             className={`relative z-10 w-[min(88vw,360px)] h-full ${radiusClass} ${borderClass} overflow-hidden p-5 sm:p-6 flex flex-col justify-between transition-colors duration-250 ${className}`}
             style={{
               backgroundColor: 'var(--drawer-tint, var(--glass-fill-strong))',

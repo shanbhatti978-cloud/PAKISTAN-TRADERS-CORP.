@@ -144,7 +144,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
         
         {/* Left Zone: Menu Drawer Trigger + Brand Wordmark Title + Physical Back Button */}
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           {/* Drawer Menu Hamburger Button */}
           <button
             onClick={() => onToggleDrawer('left')}
@@ -168,18 +168,19 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* PAKISTAN TRADERS CORP. BRAND TITLE */}
-          <div className="flex items-center gap-2 min-w-0">
+          {/* Shop name + signed-in person. One truncated line each so they
+              cannot collide with the menu or the theme button. */}
+          <div className="min-w-0 flex-1">
             <a
               href="#"
               onClick={(e) => { e.preventDefault(); onBackToDashboard?.(); }}
-              className="flex flex-col hover:opacity-85 transition-opacity leading-none"
+              className="block min-w-0 hover:opacity-85 transition-opacity leading-tight"
             >
-              <span className="text-xs sm:text-sm font-black tracking-tight font-heading uppercase truncate" style={{ color: 'var(--theme-text-primary)' }}>
-                PAKISTAN
+              <span className="block truncate text-[13px] sm:text-sm font-black tracking-tight font-heading uppercase" style={{ color: 'var(--theme-text-primary)' }}>
+                {settings.shopName || 'Pakistan Traders'}
               </span>
-              <span className="text-xs sm:text-sm font-black tracking-tight font-heading uppercase truncate" style={{ color: 'var(--theme-primary)' }}>
-                TRADERS CORP.
+              <span className="block truncate text-[11px] sm:text-xs font-semibold" style={{ color: 'var(--theme-primary)' }}>
+                {currentUser ? `${currentUser.fullName} · ${currentUser.role}` : 'Instalment & stock'}
               </span>
             </a>
           </div>
@@ -355,7 +356,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* LOGGED-IN USER & ROLE BADGE BUTTON */}
           {currentUser && (
-            <div className="flex items-center gap-1.5">
+            <div className="hidden md:flex items-center gap-1.5">
               <button
                 onClick={onOpenUserLogin}
                 title={`Logged in as ${currentUser.fullName} (${currentUser.role}). Click to switch user / role.`}
@@ -408,7 +409,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onToggleThemeMode}
               title={isLight ? 'Switch to Material 3 Dark Mode' : 'Switch to Material 3 Light Mode'}
-              className="p-2 rounded-xl text-body-sm font-semibold transition-all border flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
+              className="w-10 h-10 shrink-0 rounded-xl text-body-sm font-semibold transition-all border flex items-center justify-center cursor-pointer shadow-xs active:scale-95"
               style={{ backgroundColor: 'var(--theme-surface-card)', borderColor: 'var(--theme-surface-border)', color: 'var(--theme-primary)' }}
             >
               {isLight ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
