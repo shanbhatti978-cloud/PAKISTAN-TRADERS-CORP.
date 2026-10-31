@@ -154,6 +154,7 @@ export interface Agreement {
   schedule: InstalmentDueDate[];
   notes?: string;
   createdAt: string;
+  completedAt?: string;
   recordedBy?: { userId: string; username: string } | string;
 }
 

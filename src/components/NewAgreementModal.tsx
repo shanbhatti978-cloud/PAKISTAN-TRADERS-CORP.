@@ -71,7 +71,7 @@ export const NewAgreementModal: React.FC<NewAgreementModalProps> = ({
 
   // Financial & Agreement Terms State
   const defaultCash = selectedStockItem?.cashPrice || 35000;
-  const defaultUnitCost = selectedStockItem?.unitCost || Math.round(defaultCash * 0.85);
+  const defaultUnitCost = selectedStockItem?.unitCost || selectedStockItem?.cashPrice || defaultCash;
 
   const [purchaseDate, setPurchaseDate] = useState<string>(
     selectedStockItem?.purchaseDate || todayLocal()
@@ -108,7 +108,7 @@ export const NewAgreementModal: React.FC<NewAgreementModalProps> = ({
     setCashPrice(item.cashPrice);
     setTotalInstalmentPrice(item.instalmentPrice);
     setDownPayment(item.minDownPayment);
-    setUnitCost(item.unitCost || Math.round(item.cashPrice * 0.85));
+    setUnitCost(item.unitCost || item.cashPrice);
     if (item.purchaseDate) {
       setPurchaseDate(item.purchaseDate);
     }

@@ -205,6 +205,25 @@ function MainAppLayout() {
     );
   }
 
+  // Phase 1: When currentUser === null, block with full-screen LoginScreen
+  if (!currentUser) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/95 backdrop-blur-md p-4">
+        <UserLoginModal
+          users={users}
+          currentUser={currentUser as any}
+          hasRealAdmin={hasRealAdmin}
+          isOpen={true}
+          onClose={() => {}}
+          onLogin={loginUser}
+          onChangeOwnPassword={changeOwnPassword}
+          onLogout={logoutUser}
+          isLight={isLight}
+        />
+      </div>
+    );
+  }
+
   const isModalOpen =
     actions.showNewAgrModal ||
     actions.showPaymentModal ||

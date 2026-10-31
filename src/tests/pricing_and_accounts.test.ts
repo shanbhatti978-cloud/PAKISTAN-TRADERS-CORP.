@@ -350,8 +350,8 @@ describe('Round 4: Pricing, Markup Flow, Cost Accounting & Accounts', () => {
 
     // Create viewer account
     let viewer: any;
-    act(() => {
-      viewer = result.current.createUserAccount({
+    await act(async () => {
+      viewer = await result.current.createUserAccount({
         username: 'viewtest1',
         fullName: 'Viewer Test',
         password: 'Password123',

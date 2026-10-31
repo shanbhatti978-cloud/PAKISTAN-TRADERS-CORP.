@@ -73,8 +73,8 @@ export async function verifyPassword(password: string, salt: string | undefined,
       return true;
     }
   }
-  // Legacy unhashed comparison
-  return storedHash === password;
+  // Plaintext matches are strictly disallowed
+  return false;
 }
 
 
